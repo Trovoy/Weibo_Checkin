@@ -8,7 +8,7 @@ import requests
 import time
 
 # 在脚本开始时等待 0 到 7200 秒 (0 到 2 小时)
-sleep_time = random.randint(0, 7)
+sleep_time = random.randint(0, 7200)
 time.sleep(sleep_time)
 
 # 配置 headers 和 cookies
