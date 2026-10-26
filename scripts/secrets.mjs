@@ -23,6 +23,10 @@ if (upload) {
   }));
   if (!vars.ADMIN_TOKEN || vars.ADMIN_TOKEN.length < 32 || Buffer.from(vars.ENCRYPTION_KEY ?? '', 'base64').length !== 32) throw new Error('.dev.vars 密钥格式不正确，请使用生成的密钥');
   const secrets = { ADMIN_TOKEN: vars.ADMIN_TOKEN, ENCRYPTION_KEY: vars.ENCRYPTION_KEY };
+  if (vars.NODESEEK_ADMIN_TOKEN) {
+    if (vars.NODESEEK_ADMIN_TOKEN.length < 32 || vars.NODESEEK_ADMIN_TOKEN === vars.ADMIN_TOKEN) throw new Error('NodeSeek 管理密钥至少 32 字符，且应与面板管理密钥不同');
+    secrets.NODESEEK_ADMIN_TOKEN = vars.NODESEEK_ADMIN_TOKEN;
+  }
   if (vars.NOTIFY_WEBHOOK_URL) {
     let valid = false;
     try { const url = new URL(vars.NOTIFY_WEBHOOK_URL); valid = url.protocol === 'https:' && !url.username && !url.password; } catch { /* Do not echo a private webhook URL. */ }

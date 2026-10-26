@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light"><meta name="description" content="个人微博超话签到控制台">
-  <title>每日 · 微博超话签到</title><link rel="stylesheet" href="/style.css">
+  <meta name="color-scheme" content="light"><meta name="description" content="个人多平台签到工作台">
+  <title>每日 · 签到工作台</title><link rel="stylesheet" href="/style.css">
   <script src="/vendor/gsap.min.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/platforms.js" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true"><defs>
@@ -17,23 +18,25 @@
   </defs></svg>
   <div class="shell">
     <aside>
-      <a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>WEIBO CHECK-IN</small></span></a>
+      <a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>CHECK-IN HUB</small></span></a>
       <p class="aside-label">工作空间</p>
-      <nav aria-label="功能页面"><a href="#/overview" class="active"><svg class="icon"><use href="#icon-overview"/></svg>签到概览</a><a href="#/topics"><svg class="icon"><use href="#icon-topics"/></svg>我的超话</a><a href="#/account"><svg class="icon"><use href="#icon-account"/></svg>微博账号</a><a href="#/history"><svg class="icon"><use href="#icon-history"/></svg>签到记录</a></nav>
+      <nav aria-label="功能页面"><a href="#/overview" class="active"><svg class="icon"><use href="#icon-overview"/></svg>签到概览</a><a href="#/topics"><svg class="icon"><use href="#icon-topics"/></svg>微博超话</a><a href="#/account"><svg class="icon"><use href="#icon-account"/></svg>微博账号</a><a href="#/nodeseek"><svg class="icon"><use href="#icon-check"/></svg>NodeSeek</a><a href="#/history"><svg class="icon"><use href="#icon-history"/></svg>签到记录</a></nav>
       <div class="aside-foot"><span class="dot"></span> 个人工作台<small>单账号 · 私人空间</small><button id="lock" class="text-button" hidden>锁定控制台 ↗</button></div>
     </aside>
     <main>
-      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><a href="https://weibo.com" target="_blank" rel="noreferrer">打开微博 ↗</a></header>
+      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><a id="platform-home" href="https://weibo.com" target="_blank" rel="noreferrer">打开微博 ↗</a></header>
       <section id="unlock" class="unlock card" hidden>
         <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
         <p class="muted">使用你的管理密钥进入个人控制台。</p>
         <form id="unlock-form"><label for="token">管理密钥</label><div class="input-action"><input id="token" type="password" autocomplete="current-password" required placeholder="输入部署时设置的管理密钥"><button class="primary">进入控制台 →</button></div></form>
-        <p class="fine">微博登录信息仅在解锁后的控制台管理。</p>
+        <p class="fine">各平台的登录与任务仅在解锁后的控制台管理。</p>
       </section>
       <div id="dashboard" hidden>
         <section class="intro"><div><h1 id="page-heading" tabindex="-1">签到概览</h1><p class="muted" id="overview-copy">管理账号、超话和每日签到。</p></div><span class="date" id="date"></span></section>
         <div id="notice" class="notice" hidden></div>
         <div class="page" id="overview" data-page="overview">
+        <div class="section-heading"><h2>我的平台</h2><span class="fine" id="platform-count">正在读取</span></div><div id="platform-list" class="platform-grid" aria-label="已接入的平台"></div>
+        <div class="section-heading"><h2>微博 · 超话签到</h2><a href="#/topics" class="inline-link">管理超话 ↗</a></div>
         <section class="stats" aria-label="签到概览">
           <div class="card stat"><span>今日已完成</span><strong><span id="completed-count">0</span><small> / <span id="topic-count">0</span></small></strong><p>已签到 / 已配置超话</p></div>
           <div class="card stat"><span>微博登录状态</span><strong class="status-label" id="login-stat">未连接</strong><p id="last-check">等待首次登录</p></div>
@@ -56,8 +59,18 @@
               <button class="primary" type="submit">保存设置</button><p class="fine">搜索结果加入后，记得保存设置。</p>
             </form>
           </section>
-        <section class="card history-card page" id="history" data-page="history" hidden><div class="section-heading"><div><h2>最近记录</h2><p class="muted">最近的执行结果与状态。</p></div><button id="refresh" class="text-button">刷新 ↻</button></div><div class="table-wrap"><table><thead><tr><th>超话</th><th>时间 · UTC+8</th><th>结果</th><th>说明</th></tr></thead><tbody id="history-body"></tbody></table></div><div id="empty-history" class="empty">还没有签到记录。准备好后，点击「立即签到」。</div></section>
-        <footer>每日 · Weibo Check-in <span>所有时间均为 UTC+8</span></footer>
+        <div class="page" id="nodeseek" data-page="nodeseek" hidden>
+          <section class="card"><div class="section-heading"><h2>NodeSeek</h2><span id="ns-connection" class="badge neutral">读取中</span></div><p id="ns-feedback" class="muted" role="status">正在读取签到服务。</p>
+          <div class="stats ns-stats"><div><span class="fine">今日签到</span><strong id="ns-today">—</strong></div><div><span class="fine">今日鸡腿</span><strong id="ns-gain">—</strong></div><div><span class="fine">Cookie 状态</span><strong id="ns-health">—</strong><p id="ns-health-time" class="fine"></p></div></div>
+          <div class="ns-actions"><button id="ns-run" class="primary" disabled>立即签到</button><button id="ns-check" disabled>检测 Cookie</button><button id="ns-refresh">刷新</button></div></section>
+          <section class="card" id="ns-settings"><div class="section-heading"><h2>签到设置</h2><span class="fine">UTC+8</span></div><p class="muted" id="ns-next">读取当前计划中…</p>
+          <form id="ns-schedule-form"><div class="field-grid"><div><label for="ns-start">随机时段开始</label><input id="ns-start" type="time" required></div><div><label for="ns-end">随机时段结束</label><input id="ns-end" type="time" required></div></div><p class="fine">每天在时段内随机执行一次，14:00 检查并补签；结束不晚于 14:00，时段至少 5 分钟。</p><button id="ns-schedule-save" type="submit" disabled>保存时段</button></form>
+          <form id="ns-config-form"><label for="ns-random">领取方式</label><select id="ns-random"><option value="true">随机奖励</option><option value="false">固定奖励</option></select>
+          <details><summary>更新 Cookie 与浏览器标识 <span>＋</span></summary><p class="fine" id="ns-sync">已连接的浏览器扩展可继续同步，无需重新配对。仅在需要时手动更新。</p><label for="ns-cookie">NodeSeek Cookie（留空保留）</label><textarea id="ns-cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="粘贴完整 Cookie 值，不包含 Cookie: 前缀"></textarea><label for="ns-ua">User-Agent（留空保留）</label><input id="ns-ua" autocomplete="off" placeholder="与获取 Cookie 时使用的浏览器一致"></details><button id="ns-config-save" type="submit" disabled>保存配置</button></form></section>
+          <section class="card history-card"><div class="section-heading"><div><h2>NodeSeek 签到记录</h2><p class="muted" id="ns-history-summary">读取已有签到记录，不会执行签到。</p></div><button id="ns-reconcile" disabled>从账单补全</button></div><div class="history-filters"><label>月份<input id="ns-history-month" type="month"></label></div><div class="table-wrap"><table><thead><tr><th>日期</th><th>结果</th><th>鸡腿</th><th>领取时间 · UTC+8</th></tr></thead><tbody id="ns-history-body"></tbody></table></div><p id="ns-history-empty" class="empty">暂无记录</p></section>
+        </div>
+        <section class="card history-card page" id="history" data-page="history" hidden><div class="section-heading"><div><h2>签到记录</h2><p class="muted">微博最近 200 条记录，以及 NodeSeek 按月保存的记录。</p></div><button id="refresh" class="text-button">刷新 ↻</button></div><div class="history-filters"><label>平台<select id="history-platform"><option value="all">全部平台</option><option value="weibo">微博</option><option value="nodeseek">NodeSeek</option></select></label><label>月份<input id="history-month" type="month"></label><span class="fine" id="history-feedback"></span></div><div class="table-wrap"><table><thead><tr><th>平台 / 项目</th><th>时间 · UTC+8</th><th>结果</th><th>说明</th></tr></thead><tbody id="history-body"></tbody></table></div><div id="empty-history" class="empty">这个月份还没有记录。</div></section>
+        <footer>每日 · Check-in Hub <span>所有时间均为 UTC+8</span></footer>
       </div>
       <div id="toast" role="status" aria-live="polite" hidden></div>
     </main>

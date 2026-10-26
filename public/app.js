@@ -4,10 +4,11 @@ const labels = { missing: '未连接', valid: '已连接', expired: '需重新�
 const busy = new Set();
 const motion = window.gsap, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const pages = {
-  overview: ['签到概览', '查看每日签到进度、当前配置和最近结果。'],
+  overview: ['签到概览', '一个工作台，查看各平台的签到状态与执行结果。'],
   topics: ['我的超话', '读取已关注的超话，管理签到列表与自动签到。'],
   account: ['微博账号', '查看当前账号，管理登录和个人等级连接。'],
-  history: ['签到记录', '查看最近 200 条签到记录与执行结果。']
+  nodeseek: ['NodeSeek', '管理每日签到、Cookie 检测、随机时段与鸡腿记录。'],
+  history: ['签到记录', '按平台与月份查看签到结果。']
 };
 function enter(target, stagger = 0) {
   if (!motion || reduceMotion.matches) return;
@@ -24,7 +25,10 @@ function showPage(animate = true) {
   $('page-heading').textContent = pages[key][0]; $('page-label').textContent = pages[key][0];
   $('overview-copy').textContent = pages[key][1]; $('date').hidden = key !== 'overview';
   document.title = pages[key][0] + ' · 每日';
+  $('platform-home').href = key === 'nodeseek' ? 'https://www.nodeseek.com' : 'https://weibo.com';
+  $('platform-home').textContent = key === 'nodeseek' ? '打开 NodeSeek ↗' : '打开微博 ↗';
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelector('[data-page="' + key + '"]')); $('page-heading').focus({ preventScroll: true }); }
+  if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
 }
 function navigate(hash) {
   const key = hash.replace(/^#\/?/, '');
@@ -75,6 +79,7 @@ function lock() {
   $('followed-results').replaceChildren(); $('followed-feedback').textContent = ''; $('connect-levels').hidden = true;
   $('account-avatar').removeAttribute('src'); $('account-name').textContent = ''; $('account-uid').textContent = ''; avatarKey = '';
   $('qr-placeholder').hidden = false;
+  if (typeof resetPlatforms === 'function') resetPlatforms();
 }
 async function api(path, body) {
   const response = await fetch('/api/' + path, { method: body === undefined ? 'GET' : 'POST',
@@ -100,6 +105,7 @@ function syncControls() {
   $('load-followed').disabled = busy.has('load-followed') || running || state.login !== 'valid';
   $('connect-levels').disabled = busy.has('connect-levels') || running || state.login !== 'valid';
   $('show-login').disabled = running;
+  if (typeof syncPlatformControls === 'function') syncPlatformControls();
 }
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -143,12 +149,7 @@ function render(settings = false) {
   const last = state.history[0];
   $('summary-last-topic').textContent = last?.topic.name || '暂无记录';
   $('summary-last-result').textContent = last ? `${{ success: '签到成功', already: '今日已签', failed: '未完成' }[last.result]} · ${time(last.at)}` : '添加超话后即可开始签到。';
-  $('history-body').replaceChildren(); $('empty-history').hidden = state.history.length > 0;
-  for (const entry of state.history) {
-    const tr = node('tr'); tr.append(node('td', entry.topic.name), node('td', time(entry.at)));
-    const result = node('td'); result.append(node('span', { success: '签到成功', already: '今日已签', failed: '未完成' }[entry.result], 'badge ' + entry.result));
-    tr.append(result, node('td', entry.message)); $('history-body').append(tr);
-  }
+  if (typeof renderPlatformHistory === 'function') { renderPlatformHistory(); renderPlatformCards(); }
   if (settings) {
     $('enabled').checked = state.enabled; $('topic-list').replaceChildren();
     if (motion) motion.set($('switch-knob'), { x: state.enabled ? 15 : 0 });
@@ -167,6 +168,7 @@ async function refresh(settings = false) {
   $('unlock').hidden = true; $('dashboard').hidden = false; $('lock').hidden = false;
   render(settings);
   if (entering) enter(document.querySelector('[data-page]:not([hidden])'));
+  if (typeof refreshPlatforms === 'function') refreshPlatforms().catch(() => {});
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => refresh().catch(e => { toast(e.message, true); }), state.job?.status === 'running' ? 4000 : 60000);
   if (state.login === 'valid' && !state.profile && state.job?.status !== 'running' && Date.now() - profileAttemptAt > 60000) {

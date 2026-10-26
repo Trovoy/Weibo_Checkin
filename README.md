@@ -1,13 +1,14 @@
-# 每日 · Weibo Check-in
+# 每日 · 签到工作台
 
-个人微博超话签到工具，使用 **Cloudflare Workers + SQLite Durable Objects**，不需要常驻服务器。
+个人多平台签到工作台，使用 **Cloudflare Workers + SQLite Durable Objects**，不需要常驻服务器。内置微博超话签到，支持连接自己现有的 NodeSeek 签到 Worker，并预留平台适配器。
 
 这是对 2023 年 Python 版本的重写。旧脚本保留在 `legacy/weibo_checkin.py`，不再作为运行入口。
 
 ## 功能
 
+- 统一入口：同一管理会话查看微博与 NodeSeek，概览汇总平台状态，记录按平台和月份筛选。NodeSeek 通过内部 Service Binding 接入，沿用原服务的数据库、定时任务和浏览器扩展配对。
 - 单账号控制台：扫码登录优先，完整 Cookie 导入备用，不收集账号密码。
-- 简洁工作台：概览、超话、账号、记录四个独立页面，支持刷新和浏览器前进后退；登录后显示当前昵称与 UID，扫码区域按需展开；清晰系统字体与自适应布局，全部动效使用本地 GSAP，遵循系统减少动态效果设置。
+- 简洁工作台：概览、微博超话、微博账号、NodeSeek、记录五个独立页面，支持刷新和浏览器前进后退；登录后显示当前昵称与 UID，扫码区域按需展开；清晰系统字体与自适应布局，全部动效使用本地 GSAP，遵循系统减少动态效果设置。
 - 按域名、路径和有效期维护 Cookie，接收 `Set-Cookie` 更新，固定 User-Agent。
 - Cookie 与扫码临时状态使用 AES-256-GCM 加密后存储，前端无法读取已保存的 Cookie。
 - 管理密钥解锁，使用有时限的 HttpOnly / SameSite 会话，写接口校验请求来源。
@@ -16,6 +17,8 @@
 - Alarm 每次处理一个超话，间隔 10 秒；按 UTC+8 日期跳过已完成项。
 - 登录失效、风控、网络异常或未知响应时停止本轮任务，记录原因。签到 POST 结果未知时不自动重试。
 - 最近 200 条记录；可选失败 Webhook，只发送摘要，同一提示成功通知后不重复发送。
+
+NodeSeek 是可选连接器；不配置时微博可独立使用。参见 [连接 NodeSeek 与扩展新平台](docs/PLATFORMS.md)。
 
 **登录状态由微博控制，无法保证 Cookie 永不过期。** 接收新 Cookie 不等于自动续期。扫码、检测和签到使用非公开网页接口，微博可以修改或限制接口，Cloudflare 出口也可能被拒绝。遇到验证请在微博官方客户端完成，再重新扫码或更新 Cookie。项目不包含验证码绕过、密码自动登录或代理切换。
 
@@ -75,6 +78,7 @@ Cron 为 `0 1 * * *`（UTC），即 UTC+8 的 09:00。修改 `wrangler.jsonc` �
 | `ADMIN_TOKEN` | 至少 32 字符，建议随机生成。修改后所有控制台会话失效。 |
 | `ENCRYPTION_KEY` | 32 字节随机数据的 Base64。用于加密 Cookie 与扫码状态。请备份，丢失后无法解密原登录。 |
 | `NOTIFY_WEBHOOK_URL` | 可选 HTTPS 地址，接收 POST JSON `{ "title": "微博签到需要处理", "content": "失败摘要" }`，不包含 Cookie。 |
+| `NODESEEK_ADMIN_TOKEN` | 可选，所连接 NodeSeek Worker 的现有管理员密钥；不是扩展同步令牌，不应与本面板密钥相同。 |
 
 用 `npx wrangler secret put NAME` 更新单个 Secret，或修改 `.dev.vars` 后运行 `node scripts/secrets.mjs --upload`。脚本只上传上表中的配置，不上传其他变量。使用本地部署配置时，追加 `--config wrangler.local.jsonc`，确保密钥与代码上传到同一个 Worker。`.dev.vars` 已被 Git 忽略，不能提交。替换加密密钥前先在控制台断开账号，换密钥后重新登录。
 
