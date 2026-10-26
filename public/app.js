@@ -135,7 +135,7 @@ $('create-qr').addEventListener('click', () => action($('create-qr'), async () =
   clearTimeout(qrTimer); const data = await api('qr/create', {});
   qrExpires = data.expires; $('qr-image').src = data.image;
   $('qr-image').hidden = false; $('qr-placeholder').hidden = true;
-  $('qr-status').textContent = '请用微博 App 扫码并确认登录'; $('create-qr').textContent = '重新显示二维码';
+  $('qr-status').textContent = '请用微博 App 扫码并确认登录'; $('create-qr').textContent = '刷新登录二维码';
   qrTimer = setTimeout(pollQR, 3500);
 }));
 $('qr-image').addEventListener('error', () => { clearQR('二维码图片加载失败，可使用 Cookie 备用登录'); });

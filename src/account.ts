@@ -176,7 +176,9 @@ export class WeiboAccount {
       const existing = await this.ctx.storage.get<string>('qr');
       if (existing) {
         const qr = await open<QR>(existing, this.env.ENCRYPTION_KEY);
-        if (qr.expires > Date.now()) return { image: qr.image, expires: qr.expires };
+        if (qr.expires > Date.now() && qr.cookies.some(c => c.name === 'SUB' && c.domain.endsWith('weibo.com'))) {
+          return { image: qr.image, expires: qr.expires };
+        }
       }
       const client = new WeiboClient(new CookieJar(), this.transport);
       const { qrid, image } = await client.createQR();
@@ -194,7 +196,12 @@ export class WeiboAccount {
       qr.lastPoll = Date.now();
       const client = new WeiboClient(new CookieJar(qr.cookies), this.transport);
       try {
-        const status = await client.pollQR(qr.qrid);
+        let status: 'pending' | 'scanned' | 'expired' | 'ok';
+        if (/(?:^|; )SUB=/.test(client.jar.header(new URL('https://weibo.com/')))) {
+          // Resume a partial SSO exchange without consuming the mobile confirmation again.
+          client.loginStage = '验证已保存的扫码会话';
+          await client.validate(); status = 'ok';
+        } else status = await client.pollQR(qr.qrid);
         if (status === 'ok') {
           state.login = 'valid'; state.message = undefined; state.lastAlert = undefined; state.lastChecked = new Date().toISOString();
           await this.remember(state, client); await this.ctx.storage.delete('qr');
@@ -204,7 +211,16 @@ export class WeiboAccount {
           await this.ctx.storage.put('qr', await seal(qr, this.env.ENCRYPTION_KEY));
         }
         return { status };
-      } catch (error) { await this.ctx.storage.delete('qr'); throw error; }
+      } catch (error) {
+        const message = error instanceof WeiboError ? error.message : '处理扫码会话失败，请检查服务配置';
+        state.message = `${client.loginStage}：${message}`;
+        await this.save(state);
+        if (/(?:^|; )SUB=/.test(client.jar.header(new URL('https://weibo.com/')))) {
+          qr.cookies = client.jar.cookies;
+          await this.ctx.storage.put('qr', await seal(qr, this.env.ENCRYPTION_KEY));
+        } else await this.ctx.storage.delete('qr');
+        throw new HttpError(502, state.message);
+      }
     }
     throw new HttpError(404, '接口不存在');
   }

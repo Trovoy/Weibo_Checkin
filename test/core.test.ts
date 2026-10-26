@@ -94,7 +94,8 @@ test('QR login retains domain cookies across SSO and verifies the final account'
     const headers = new Headers(init.headers);
     if (url.pathname === '/sso/qrcode/image') return new Response('window.STK_qr && STK_qr({"retcode":20000000,"data":{"qrid":"private-id","image":"https://v2.qr.weibo.cn/qr.png"}});');
     if (url.pathname === '/sso/qrcode/check') return Response.json({ retcode: 20000000, data: { alt: 'private-ticket' } });
-    if (url.pathname === '/sso/login.php') return Response.json({ retcode: 0, crossDomainUrlList: ['http://passport.weibo.com/wbsso/login?ticket=test'] });
+    if (url.pathname === '/sso/login.php') return Response.json({ retcode: 0, crossDomainUrlList: ['http://passport.weibo.com/wbsso/login?ticket=test', 'https://passport.krcom.cn/sso/login?ticket=unrelated'] });
+    assert.notEqual(url.hostname, 'passport.krcom.cn');
     if (url.pathname === '/wbsso/login') {
       assert.equal(headers.get('Cookie'), ''); assert.equal(url.searchParams.get('action'), 'login');
       return new Response('{}', { headers: { 'Set-Cookie': 'SUB=final-secret; Domain=.weibo.com; Path=/; Secure' } });

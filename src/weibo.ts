@@ -10,7 +10,7 @@ export function allowedURL(raw: string | URL): URL {
   if (url.protocol === 'http:') url.protocol = 'https:';
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') ||
     !['weibo.com', 'www.weibo.com', 'login.sina.com.cn', 'passport.weibo.com', 'passport.weibo.cn', 'passport.sina.com.cn', 'passport.sina.cn'].includes(url.hostname)) {
-    throw new WeiboError('protocol', '微博返回了不受支持的登录地址');
+    throw new WeiboError('protocol', `微博返回了不受支持的登录地址（${url.hostname}）`);
   }
   return url;
 }
@@ -28,6 +28,7 @@ export function parsePayload(text: string): Data {
 export class WeiboClient {
   jar: CookieJar;
   transport: typeof fetch;
+  loginStage = '查询扫码状态';
   constructor(jar: CookieJar, transport: typeof fetch = (...args) => fetch(...args)) { this.jar = jar; this.transport = transport; }
   async request(raw: string | URL, init: RequestInit = {}): Promise<Response> {
     let url = allowedURL(raw);
@@ -102,6 +103,7 @@ export class WeiboClient {
     return { qrid: data.data.qrid as string, image: image.href };
   }
   async pollQR(qrid: string): Promise<'pending' | 'scanned' | 'expired' | 'ok'> {
+    this.loginStage = '查询扫码状态';
     const url = new URL('https://login.sina.com.cn/sso/qrcode/check');
     url.search = new URLSearchParams({ entry: 'weibo', qrid, callback: 'STK_poll', _: String(Date.now()) }).toString();
     const data = await this.json(url);
@@ -110,20 +112,30 @@ export class WeiboClient {
     if (code === 50114002) return 'scanned';
     if ([50114003, 50114004].includes(code)) return 'expired';
     if (code !== 20000000 || typeof data.data?.alt !== 'string') throw new WeiboError('protocol', '扫码登录未完成，请重试或使用 Cookie 入口');
+    this.loginStage = '兑换登录票据';
     const login = new URL('https://login.sina.com.cn/sso/login.php');
     login.search = new URLSearchParams({ entry: 'weibo', returntype: 'TEXT', crossdomain: '1', cdult: '3', domain: 'weibo.com', alt: data.data.alt, savestate: '30', callback: 'STK_login' }).toString();
     const result = await this.json(login);
     if (Number(result.retcode) !== 0 && Number(result.retcode) !== 20000000) throw new WeiboError('auth', '微博未接受扫码登录，请重试');
     if (!Array.isArray(result.crossDomainUrlList) || result.crossDomainUrlList.length > 6) throw new WeiboError('protocol', '微博跨域登录响应异常');
-    for (const [i, raw] of result.crossDomainUrlList.entries()) {
+    let synced = false;
+    for (const raw of result.crossDomainUrlList) {
+      // SSO includes unrelated affiliated services. Only exchange the desktop Weibo session.
+      const target = new URL(raw);
+      if (!['passport.weibo.com', 'weibo.com', 'www.weibo.com'].includes(target.hostname)) continue;
+      this.loginStage = '同步微博登录';
       const cross = allowedURL(raw);
-      if (i === 0) cross.searchParams.set('action', 'login');
+      cross.searchParams.set('action', 'login');
       const response = await this.request(cross);
       await response.body?.cancel();
+      synced = true;
     }
+    if (!synced) throw new WeiboError('protocol', '扫码结果未包含微博登录地址');
     // Prime weibo.com's cookies (including XSRF) after SSO.
+    this.loginStage = '初始化微博会话';
     const home = await this.request('https://weibo.com/');
     await home.body?.cancel();
+    this.loginStage = '验证登录状态';
     await this.validate();
     return 'ok';
   }

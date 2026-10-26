@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WeiboAccount, dayKey } from '../src/account.ts';
 import worker from '../src/index.ts';
-import { session, open } from '../src/crypto.ts';
+import { session, open, seal } from '../src/crypto.ts';
 const key = btoa('a'.repeat(32));
 const topic = { name: '示例', id: '100808' + 'a'.repeat(32) };
 class MemoryStorage {
@@ -108,6 +108,29 @@ test('a job from yesterday stops without signing on the wrong day', async () => 
   await account.alarm();
   assert.equal(posts, 0); assert.equal((await storage.get('state')).job.status, 'stopped');
   assert.notEqual(dayKey(), '2000-01-01');
+});
+test('partial QR login remains encrypted and can resume after a home-page failure', async () => {
+  let qrChecks = 0;
+  const { call, storage } = setup(async raw => {
+    const url = new URL(raw);
+    if (url.pathname === '/sso/qrcode/image') return Response.json({ retcode: 20000000, data: { qrid: 'one-ticket', image: 'https://v2.qr.weibo.cn/qr.png' } });
+    if (url.pathname === '/sso/qrcode/check') { qrChecks++; return Response.json({ retcode: 20000000, data: { alt: 'ticket' } }); }
+    if (url.pathname === '/sso/login.php') return Response.json({ retcode: 0, crossDomainUrlList: ['https://passport.weibo.com/wbsso/login'] });
+    if (url.pathname === '/wbsso/login') return new Response('{}', { headers: { 'Set-Cookie': 'SUB=resumable-secret; Domain=.weibo.com; Path=/; Secure' } });
+    if (url.pathname === '/') return new Response('', { status: 403 });
+    return Response.json({ ok: 1, data: { privacy: {} } });
+  });
+  assert.equal((await call('qr/create')).status, 200);
+  assert.equal((await call('qr/poll')).status, 502);
+  assert.match((await (await call('status')).json()).message, /^初始化微博会话/);
+  const qr = await open(await storage.get('qr'), key);
+  assert.equal(qr.cookies.find(c => c.name === 'SUB').value, 'resumable-secret');
+  assert.ok(!JSON.stringify([...storage.values]).includes('resumable-secret'));
+  qr.lastPoll = 0; await storage.put('qr', await seal(qr, key));
+  assert.equal((await (await call('qr/poll')).json()).status, 'ok');
+  assert.equal(qrChecks, 1);
+  assert.equal((await (await call('status')).json()).login, 'valid');
+  assert.equal(await storage.get('qr'), undefined);
 });
 test('worker authentication blocks anonymous, forged, cross-origin and internal requests', async () => {
   let calls = 0;
