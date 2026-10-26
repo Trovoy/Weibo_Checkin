@@ -750,3 +750,12 @@ html {
 #topic-search-form .input-action {
   flex-direction: row;
 }
+#followed-results {
+  max-height: 330px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.followed-info { flex: 1; min-width: 0; }
+.followed-info .fine { margin: 4px 0 0; }
+.topic-level { font-size: 11px; color: var(--muted); white-space: nowrap; }
+#load-followed { margin-top: 12px; }

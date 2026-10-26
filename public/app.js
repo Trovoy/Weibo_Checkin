@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
-let state, statusTimer, qrTimer, toastTimer, qrExpires = 0;
+let state, statusTimer, qrTimer, toastTimer, qrExpires = 0, qrMobile = false;
 const labels = { missing: '未连接', valid: '已连接', expired: '需重新登录', blocked: '需安全验证' };
+const busy = new Set();
 function toast(text, error = false) {
   $('toast').textContent = text; $('toast').classList.toggle('error', error); $('toast').hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6000);
@@ -9,6 +10,7 @@ function lock() {
   clearTimeout(statusTimer); clearTimeout(qrTimer);
   $('unlock').hidden = false; $('dashboard').hidden = true; $('lock').hidden = true;
   $('cookie').value = ''; $('qr-image').hidden = true; $('qr-image').removeAttribute('src');
+  $('followed-results').replaceChildren(); $('followed-feedback').textContent = ''; $('connect-levels').hidden = true;
   $('qr-placeholder').hidden = false;
 }
 async function api(path, body) {
@@ -24,14 +26,16 @@ async function api(path, body) {
 }
 async function action(button, operation) {
   if (button.disabled) return;
-  button.disabled = true;
+  button.disabled = true; busy.add(button.id);
   try { await operation(); } catch (error) { toast(error.message || '网络连接失败，请稍后重试', true); }
-  finally { button.disabled = false; if (state && !$('dashboard').hidden) syncControls(); }
+  finally { busy.delete(button.id); button.disabled = false; if (state && !$('dashboard').hidden) syncControls(); }
 }
 function syncControls() {
   const running = state.job?.status === 'running';
   $('run').disabled = running || state.login !== 'valid' || !state.topics.length;
   for (const id of ['create-qr', 'validate', 'disconnect']) $(id).disabled = running;
+  $('load-followed').disabled = busy.has('load-followed') || running || state.login !== 'valid';
+  $('connect-levels').disabled = busy.has('connect-levels') || running || state.login !== 'valid';
 }
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -96,7 +100,11 @@ async function pollQR() {
   if (Date.now() > qrExpires) { clearQR('二维码已过期，请重新生成'); return; }
   try {
     const data = await api('qr/poll', {});
-    if (data.status === 'ok') { clearQR('账号已连接'); toast('微博登录成功'); await refresh(); return; }
+    if (data.status === 'ok') {
+      qrMobile = false;
+      clearQR(data.mobile ? '个人等级账号已连接' : '账号已连接'); toast(data.mobile ? '手机网页登录成功，可重新读取等级' : '微博登录成功');
+      await refresh(); if (data.mobile) $('load-followed').click(); return;
+    }
     if (data.status === 'expired') { clearQR('二维码已过期或被取消，请重新生成'); return; }
     $('qr-status').textContent = data.status === 'scanned' ? '已扫码，请在微博 App 确认登录' : '请用微博 App 扫码并确认登录';
     qrTimer = setTimeout(pollQR, 3500);
@@ -113,25 +121,57 @@ $('unlock-form').addEventListener('submit', event => {
   });
 });
 $('lock').addEventListener('click', () => action($('lock'), async () => { await api('session/logout', {}); lock(); }));
+function topicResult(topic, followed = false) {
+  const row = node('div', undefined, 'search-result');
+  const info = node('div', undefined, 'followed-info');
+  const name = node('a', topic.name); name.href = 'https://weibo.com/p/' + topic.id; name.target = '_blank'; name.rel = 'noreferrer';
+  info.append(name);
+  if (followed) info.append(node('p', topic.level === null ? '个人等级暂未提供' : `我的等级 LV.${topic.level}`, 'fine topic-level'));
+  const button = node('button', '加入签到', 'result-add'); button.type = 'button';
+  const exists = () => Array.from(document.querySelectorAll('.topic-id')).some(input => input.value === topic.id);
+  if (exists()) { button.textContent = '已加入'; button.disabled = true; }
+  button.addEventListener('click', () => {
+    if (exists()) { button.textContent = '已加入'; button.disabled = true; return; }
+    if ($('topic-list').children.length >= 30) { toast('最多配置 30 个超话', true); return; }
+    addTopic(topic); button.textContent = '已加入'; button.disabled = true; toast('已加入列表，请保存设置');
+  });
+  row.append(info, button); return row;
+}
+$('load-followed').addEventListener('click', () => action($('load-followed'), async () => {
+  $('followed-results').replaceChildren(); $('followed-feedback').textContent = '正在读取关注与个人等级…';
+  const topics = new Map(); let maxPage = 1, levelMessage = '';
+  $('connect-levels').hidden = true;
+  try {
+    for (let page = 1; page <= Math.min(maxPage, 100); page++) {
+      const data = await api('topics/followed', { page }); maxPage = data.maxPage;
+      for (const topic of data.topics) topics.set(topic.id, topic);
+      $('followed-results').replaceChildren(...Array.from(topics.values(), topic => topicResult(topic, true)));
+      $('followed-feedback').textContent = `已读取 ${topics.size} 个超话${page < maxPage ? '，继续加载…' : ''}`;
+    }
+    if (topics.size) {
+      try {
+        let cursor = ''; const seen = new Set();
+        for (let page = 0; page < 100; page++) {
+          const data = await api('topics/levels', { cursor });
+          for (const topic of data.topics) if (topics.has(topic.id)) topics.get(topic.id).level = topic.level;
+          $('followed-results').replaceChildren(...Array.from(topics.values(), topic => topicResult(topic, true)));
+          if (!data.cursor || seen.has(data.cursor)) break;
+          seen.add(data.cursor); cursor = data.cursor;
+        }
+      } catch (error) {
+        levelMessage = error.message; $('connect-levels').hidden = false;
+      }
+    }
+    $('followed-feedback').textContent = topics.size ? `已读取 ${topics.size} 个关注。${levelMessage || '等级为你在各超话的个人等级。'} 选择加入后请保存设置。` : '当前账号没有关注的超话。';
+  } catch (error) { $('followed-feedback').textContent = `已读取 ${topics.size} 个超话。${error.message}`; throw error; }
+}));
 $('topic-search-form').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
     $('search-results').replaceChildren(); $('search-feedback').textContent = '正在搜索…';
     try {
       const data = await api('topics/search', { query: $('topic-query').value.trim() });
       $('search-feedback').textContent = data.topics.length ? `找到 ${data.topics.length} 个超话，选择后保存设置。` : '未找到匹配超话，试试完整名称，或通过链接添加。';
-      for (const topic of data.topics) {
-        const row = node('div', undefined, 'search-result');
-        const name = node('a', topic.name); name.href = 'https://weibo.com/p/' + topic.id; name.target = '_blank'; name.rel = 'noreferrer';
-        const button = node('button', '加入', 'result-add'); button.type = 'button';
-        const exists = () => Array.from(document.querySelectorAll('.topic-id')).some(input => input.value === topic.id);
-        if (exists()) { button.textContent = '已加入'; button.disabled = true; }
-        button.addEventListener('click', () => {
-          if (exists()) return;
-          if ($('topic-list').children.length >= 30) { toast('最多配置 30 个超话', true); return; }
-          addTopic(topic); button.textContent = '已加入'; button.disabled = true; toast('已加入列表，请保存设置');
-        });
-        row.append(name, button); $('search-results').append(row);
-      }
+      for (const topic of data.topics) $('search-results').append(topicResult(topic));
     } catch (error) { $('search-feedback').textContent = error.message; throw error; }
   });
 });
@@ -159,13 +199,16 @@ $('cookie-form').addEventListener('submit', event => {
     const data = await api('cookie', { cookie }); toast(data.message); clearQR('账号已连接'); await refresh();
   });
 });
-$('create-qr').addEventListener('click', () => action($('create-qr'), async () => {
-  clearTimeout(qrTimer); const data = await api('qr/create', {});
+async function startQR(mobile = false) {
+  qrMobile = mobile;
+  clearTimeout(qrTimer); const data = await api('qr/create', { mobile });
   qrExpires = data.expires; $('qr-image').src = data.image;
   $('qr-image').hidden = false; $('qr-placeholder').hidden = true;
-  $('qr-status').textContent = '请用微博 App 扫码并确认登录'; $('create-qr').textContent = '刷新登录二维码';
+  $('qr-status').textContent = mobile ? '请用当前账号扫码，连接个人超话等级' : '请用微博 App 扫码并确认登录'; $('create-qr').textContent = mobile ? '刷新等级二维码' : '刷新登录二维码';
   qrTimer = setTimeout(pollQR, 3500);
-}));
+}
+$('create-qr').addEventListener('click', () => action($('create-qr'), () => startQR(qrMobile)));
+$('connect-levels').addEventListener('click', () => action($('connect-levels'), async () => { await startQR(true); location.hash = 'account'; }));
 $('qr-image').addEventListener('error', () => { clearQR('二维码图片加载失败，可使用 Cookie 备用登录'); });
 for (const [id, path] of [['validate', 'validate'], ['run', 'run'], ['stop', 'stop']]) {
   $(id).addEventListener('click', () => action($(id), async () => {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CookieJar } from '../src/cookies.ts';
 import { open, seal, session, validSession } from '../src/crypto.ts';
-import { WeiboClient, WeiboError, allowedURL, parsePayload, parseTopicSearch } from '../src/weibo.ts';
+import { WeiboClient, WeiboError, allowedURL, parsePayload, parseTopicSearch, parseFollowedCards } from '../src/weibo.ts';
 import { dayKey, topicsFromInput } from '../src/account.ts';
 
 const key = btoa('a'.repeat(32));
@@ -124,4 +124,49 @@ test('topic search uses named supertopic links, deduplicates and rejects foreign
     <a href="https://evil.test/p/${id}">fake</a><a href="https://weibo.com/u/123">not a topic</a>`;
   assert.deepEqual(parseTopicSearch(html, '单依纯'), [{ id, name: '单依纯' }, { id: other, name: '单依纯音乐' }]);
   assert.deepEqual(parseTopicSearch('<html>empty</html>', '单依纯'), []);
+});
+test('personal levels come only from followed membership cards, never topic ranks or post authors', () => {
+  const id = '100808' + 'a'.repeat(32), other = '100808' + 'b'.repeat(32);
+  assert.deepEqual(parseFollowedCards([{ card_group: [
+    { card_type: '8', scheme: `sinaweibo://pageinfo?containerid=${id}&x=1`, title_sub: '示例', desc1: '等级 LV.7' },
+    { card_type: 8, scheme: `sinaweibo://pageinfo?containerid=${other}`, title_sub: '未知', desc1: '粉丝 99万', level: 99 },
+    { card_type: 9, scheme: `sinaweibo://pageinfo?containerid=${id}`, title_sub: '博主', desc1: 'LV.88' },
+    { card_type: 8, scheme: 'https://evil.test/?containerid=bad', title_sub: 'bad', desc1: 'LV.9' }
+  ] }]), [{ id, name: '示例', level: 7 }, { id: other, name: '未知', level: null }]);
+});
+test('followed list sanitizes and deduplicates topic IDs, preserves desktop pagination', async () => {
+  const id = '100808' + 'a'.repeat(32);
+  const client = new WeiboClient(new CookieJar(), async raw => {
+    const url = new URL(raw);
+    if (url.pathname.endsWith('getSpaConfig')) return Response.json({ ok: 1, data: { uid: '1234567890' } });
+    assert.equal(url.searchParams.get('uid'), '1234567890'); assert.equal(url.searchParams.get('page'), '2');
+    return Response.json({ ok: 1, data: { max_page: 3, total_number: 30, list: [
+      { oid: '1022:' + id, title: '示例', level: 999 }, { oid: '1022:' + id, title: '示例' }, { oid: 'bad', title: 'bad' }, null
+    ] } });
+  });
+  assert.deepEqual(await client.followedTopics(2), { page: 2, maxPage: 3, total: 30, topics: [{ id, name: '示例', level: null }] });
+});
+test('mobile level reads verify account identity and keep desktop cookies scoped', async () => {
+  const client = new WeiboClient(CookieJar.fromHeader('SUB=desktop-secret'), async (raw, init) => {
+    const url = new URL(raw);
+    if (url.hostname === 'm.weibo.cn') assert.equal(new Headers(init.headers).get('Cookie'), '');
+    if (url.pathname === '/api/config') return Response.json({ ok: 1, data: { login: true, uid: '1234567890' } });
+    if (url.pathname.endsWith('getSpaConfig')) return Response.json({ ok: 1, data: { uid: '1234567890' } });
+    assert.equal(url.searchParams.get('since_id'), 'next-page');
+    return Response.json({ ok: 1, data: { cards: [], cardlistInfo: { since_id: 'last-page' } } });
+  });
+  assert.deepEqual(await client.followedLevels('next-page'), { topics: [], cursor: 'last-page' });
+  client.transport = async raw => Response.json(new URL(raw).hostname === 'm.weibo.cn' ? { data: { login: true, uid: '9999999999' } } : { ok: 1, data: { uid: '1234567890' } });
+  await assert.rejects(() => client.followedLevels(), /账号.*不同/);
+});
+test('mobile QR validates same-account login before allowing credentials to be persisted', async () => {
+  const client = new WeiboClient(new CookieJar(), async raw => {
+    const url = new URL(raw);
+    if (url.pathname.endsWith('/qrcode/check')) return Response.json({ retcode: 20000000, data: { url: 'https://passport.weibo.cn/sso/crossdomain?ticket=private' } });
+    if (url.pathname === '/api/config') return Response.json({ data: { login: true, uid: '1234567890' } });
+    return new Response('', { headers: { 'Set-Cookie': 'SUB=mobile-secret; Domain=.weibo.cn; Path=/; Secure' } });
+  });
+  assert.equal(await client.pollMobileQR('private-qr', '1234567890'), 'ok');
+  await assert.rejects(() => client.pollMobileQR('private-qr', '9999999999'), /账号不一致/);
+  assert.equal(client.jar.header(new URL('https://weibo.com/')), '');
 });

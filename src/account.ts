@@ -18,7 +18,7 @@ interface State {
   lastChecked?: string; message?: string; job?: Job;
   history: Entry[]; completed: Record<string, string[]>; lastAlert?: string;
 }
-interface QR { qrid: string; image: string; cookies: Cookie[]; expires: number; lastPoll: number }
+interface QR { qrid: string; image: string; cookies: Cookie[]; expires: number; lastPoll: number; mobile?: boolean; expectedUid?: string }
 export class HttpError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
@@ -129,6 +129,26 @@ export class WeiboAccount {
       return this.start(state);
     }
     if (path === '/api/run') return this.start(state);
+    if (path === '/api/topics/levels') {
+      this.idle(state);
+      const input = await request.json() as { cursor?: unknown };
+      const cursor = input.cursor ?? '';
+      if (typeof cursor !== 'string' || cursor.length > 200 || /[\x00-\x20]/.test(cursor)) throw new HttpError(400, '分页参数不正确');
+      if (state.login !== 'valid') throw new HttpError(409, '请先连接微博账号');
+      const client = await this.client(state);
+      try { return await client.followedLevels(cursor); }
+      finally { await this.remember(state, client); }
+    }
+    if (path === '/api/topics/followed') {
+      this.idle(state);
+      const input = await request.json() as { page?: unknown };
+      const page = input.page === undefined ? 1 : Number(input.page);
+      if (!Number.isInteger(page) || page < 1 || page > 100) throw new HttpError(400, '分页参数不正确');
+      if (state.login !== 'valid') throw new HttpError(409, '请先连接微博账号');
+      const client = await this.client(state);
+      try { return await client.followedTopics(page); }
+      finally { await this.remember(state, client); }
+    }
     if (path === '/api/topics/search') {
       this.idle(state);
       const input = await request.json() as { query?: unknown };
@@ -182,16 +202,20 @@ export class WeiboAccount {
     }
     if (path === '/api/qr/create') {
       this.idle(state);
+      const input = await request.json() as { mobile?: unknown };
+      const mobile = input.mobile === true;
+      if (mobile && state.login !== 'valid') throw new HttpError(409, '请先连接微博账号');
       const existing = await this.ctx.storage.get<string>('qr');
       if (existing) {
         const qr = await open<QR>(existing, this.env.ENCRYPTION_KEY);
-        if (qr.expires > Date.now() && qr.cookies.some(c => c.name === 'SUB' && c.domain.endsWith('weibo.com'))) {
+        if (!mobile && !qr.mobile && qr.expires > Date.now() && qr.cookies.some(c => c.name === 'SUB' && c.domain.endsWith('weibo.com'))) {
           return { image: qr.image, expires: qr.expires };
         }
       }
-      const client = new WeiboClient(new CookieJar(), this.transport);
-      const { qrid, image } = await client.createQR();
-      const qr: QR = { qrid, image, cookies: client.jar.cookies, expires: Date.now() + 120000, lastPoll: 0 };
+      const client = mobile ? await this.client(state) : new WeiboClient(new CookieJar(), this.transport);
+      const expectedUid = mobile ? await client.selfUID() : undefined;
+      const { qrid, image } = await client.createQR(mobile);
+      const qr: QR = { qrid, image, cookies: client.jar.cookies, expires: Date.now() + 120000, lastPoll: 0, mobile, expectedUid };
       await this.ctx.storage.put('qr', await seal(qr, this.env.ENCRYPTION_KEY));
       return { image, expires: qr.expires };
     }
@@ -206,12 +230,22 @@ export class WeiboAccount {
       const client = new WeiboClient(new CookieJar(qr.cookies), this.transport);
       try {
         let status: 'pending' | 'scanned' | 'expired' | 'ok';
-        if (/(?:^|; )SUB=/.test(client.jar.header(new URL('https://weibo.com/')))) {
+        if (qr.mobile) status = await client.pollMobileQR(qr.qrid, qr.expectedUid!);
+        else if (/(?:^|; )SUB=/.test(client.jar.header(new URL('https://weibo.com/')))) {
           // Resume a partial SSO exchange without consuming the mobile confirmation again.
           client.loginStage = '验证已保存的扫码会话';
           await client.validate(); status = 'ok';
         } else status = await client.pollQR(qr.qrid);
         if (status === 'ok') {
+          if (qr.mobile) {
+            // Keep the working desktop session even if the mobile SSO rotates desktop cookies.
+            const original = await this.client(state);
+            original.jar.cookies = original.jar.cookies.filter(c => !c.domain.endsWith('weibo.cn'))
+              .concat(client.jar.cookies.filter(c => c.domain === 'weibo.cn' || c.domain.endsWith('.weibo.cn')));
+            state.message = undefined;
+            await this.remember(state, original); await this.ctx.storage.delete('qr');
+            return { status, mobile: true };
+          }
           state.login = 'valid'; state.message = undefined; state.lastAlert = undefined; state.lastChecked = new Date().toISOString();
           await this.remember(state, client); await this.ctx.storage.delete('qr');
         } else if (status === 'expired') await this.ctx.storage.delete('qr');

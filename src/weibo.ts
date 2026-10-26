@@ -9,12 +9,31 @@ export function allowedURL(raw: string | URL): URL {
   const url = new URL(raw.toString());
   if (url.protocol === 'http:') url.protocol = 'https:';
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') ||
-    !['weibo.com', 'www.weibo.com', 's.weibo.com', 'login.sina.com.cn', 'passport.weibo.com', 'passport.weibo.cn', 'passport.sina.com.cn', 'passport.sina.cn'].includes(url.hostname)) {
+    !['weibo.com', 'www.weibo.com', 's.weibo.com', 'm.weibo.cn', 'visitor.passport.weibo.cn', 'login.sina.com.cn', 'passport.weibo.com', 'passport.weibo.cn', 'passport.sina.com.cn', 'passport.sina.cn'].includes(url.hostname)) {
     throw new WeiboError('protocol', `微博返回了不受支持的登录地址（${url.hostname}）`);
   }
   return url;
 }
 type Data = Record<string, any>;
+export interface FollowedTopic { id: string; name: string; level: number | null }
+export function parseFollowedCards(cards: unknown): FollowedTopic[] {
+  const found = new Map<string, FollowedTopic>();
+  const visit = (items: unknown, depth = 0) => {
+    if (!Array.isArray(items) || depth > 5) return;
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      if (Array.isArray(item.card_group)) visit(item.card_group, depth + 1);
+      if (String(item.card_type) !== '8') continue;
+      const id = /(?:[?&])containerid=(100808[a-f0-9]{32})(?:&|$)/i.exec(String(item.scheme ?? ''))?.[1]?.toLowerCase();
+      const name = typeof item.title_sub === 'string' ? item.title_sub.trim() : '';
+      if (!id || !name || name.length > 60) continue;
+      // Only the followed-card membership description is a personal supertopic level.
+      const match = /(?:等级\s*)?\bLV\.?\s*(\d{1,3})\b/i.exec(String(item.desc1 ?? ''));
+      found.set(id, { id, name, level: match ? Number(match[1]) : null });
+    }
+  };
+  visit(cards); return [...found.values()];
+}
 export function parseTopicSearch(html: string, query: string): { id: string; name: string }[] {
   const decode = (value: string) => value.replace(/<[^>]*>/g, '').replace(/&#(x[\da-f]+|\d+);/gi, (_, raw: string) => {
     const code = raw[0].toLowerCase() === 'x' ? parseInt(raw.slice(1), 16) : Number(raw);
@@ -58,7 +77,7 @@ export class WeiboClient {
     for (let hop = 0; hop < 7; hop++) {
       const headers = new Headers(options.headers);
       headers.set('User-Agent', UA);
-      headers.set('Referer', url.hostname === 's.weibo.com' ? 'https://s.weibo.com/' : 'https://weibo.com/');
+      headers.set('Referer', url.hostname === 's.weibo.com' ? 'https://s.weibo.com/' : url.hostname === 'm.weibo.cn' ? 'https://m.weibo.cn/' : 'https://weibo.com/');
       headers.set('Cookie', this.jar.header(url));
       headers.set('Accept', 'application/json, text/plain, */*');
       if (url.hostname === 'weibo.com') {
@@ -121,8 +140,45 @@ export class WeiboClient {
     if (/登录后查看|访问频次过高|访问频率过高|完成验证/.test(html)) throw new WeiboError('risk', '微博搜索暂时要求验证，请稍后再试或使用超话链接添加');
     return parseTopicSearch(html, query);
   }
-  async createQR() {
-    const data = await this.json(`https://login.sina.com.cn/sso/qrcode/image?entry=weibo&size=180&callback=STK_qr&_=${Date.now()}`);
+  async selfUID() {
+    const config = await this.json('https://weibo.com/ajax/getSpaConfig');
+    const uid = String(config.data?.uid || config.data?.user?.idstr || config.data?.user?.id || '');
+    if (Number(config.ok) !== 1 || !/^\d{5,20}$/.test(uid)) throw new WeiboError('auth', '未能识别当前微博账号，请重新检测登录状态');
+    return uid;
+  }
+  async mobileUID() {
+    const config = await this.json('https://m.weibo.cn/api/config');
+    const uid = String(config.data?.uid ?? '');
+    if (!config.data?.login || !/^\d{5,20}$/.test(uid)) throw new WeiboError('auth', '请补充手机网页扫码登录以读取个人等级');
+    return uid;
+  }
+  async followedTopics(page = 1) {
+    const uid = await this.selfUID();
+    const url = new URL('https://weibo.com/ajax/profile/topicContent');
+    url.search = new URLSearchParams({ uid, tabid: '231093_-_chaohua', page: String(page) }).toString();
+    const result = await this.json(url);
+    if (Number(result.ok) !== 1 || !result.data || !Array.isArray(result.data.list)) throw new WeiboError('protocol', '微博关注超话列表暂时不可用');
+    const topics = new Map<string, FollowedTopic>();
+    for (const item of result.data.list) {
+      const id = String(item?.oid ?? '').replace(/^1022:/, '').toLowerCase();
+      const name = typeof item?.topic_name === 'string' ? item.topic_name.trim() : typeof item?.title === 'string' ? item.title.trim() : '';
+      if (/^100808[a-f0-9]{32}$/.test(id) && name && name.length <= 60) topics.set(id, { id, name, level: null });
+    }
+    const maxPage = Math.min(100, Math.max(1, Math.floor(Number(result.data.max_page) || 1)));
+    return { page, maxPage, total: Math.max(0, Number(result.data.total_number) || 0), topics: [...topics.values()] };
+  }
+  async followedLevels(cursor = '') {
+    if (await this.mobileUID() !== await this.selfUID()) throw new WeiboError('auth', '手机网页账号与当前签到账号不同，请用同一个账号扫码');
+    const url = new URL('https://m.weibo.cn/api/container/getIndex');
+    url.search = new URLSearchParams({ containerid: '100803_-_followsuper', since_id: cursor }).toString();
+    const data = await this.json(url);
+    if (Number(data.ok) !== 1 || !Array.isArray(data.data?.cards)) throw new WeiboError('protocol', '微博暂未提供超话个人等级');
+    const next = String(data.data.cardlistInfo?.since_id ?? '');
+    if (next.length > 200 || /[\x00-\x20]/.test(next)) throw new WeiboError('protocol', '微博等级列表分页异常');
+    return { topics: parseFollowedCards(data.data.cards), cursor: next };
+  }
+  async createQR(mobile = false) {
+    const data = await this.json(mobile ? 'https://passport.weibo.com/sso/v2/qrcode/image?entry=wapsso&size=180' : `https://login.sina.com.cn/sso/qrcode/image?entry=weibo&size=180&callback=STK_qr&_=${Date.now()}`);
     if (Number(data.retcode) !== 20000000 || typeof data.data?.qrid !== 'string' || typeof data.data?.image !== 'string') {
       throw new WeiboError('protocol', '微博暂未提供登录二维码，请使用 Cookie 备用入口');
     }
@@ -132,6 +188,21 @@ export class WeiboClient {
       throw new WeiboError('protocol', '微博返回了不受支持的二维码地址');
     }
     return { qrid: data.data.qrid as string, image: image.href };
+  }
+  async pollMobileQR(qrid: string, expectedUid: string): Promise<'pending' | 'scanned' | 'expired' | 'ok'> {
+    this.loginStage = '查询手机网页扫码状态';
+    const url = new URL('https://passport.weibo.com/sso/v2/qrcode/check');
+    url.search = new URLSearchParams({ entry: 'wapsso', source: 'wapssowb', url: 'https://m.weibo.cn/', qrid, rid: 'norid', ver: '20250520' }).toString();
+    const data = await this.json(url);
+    const code = Number(data.retcode);
+    if (code === 50114001) return 'pending';
+    if (code === 50114002) return 'scanned';
+    if ([50114003, 50114004, 50114015].includes(code)) return 'expired';
+    if (code !== 20000000 || typeof data.data?.url !== 'string') throw new WeiboError('protocol', '手机网页扫码未完成，请重试');
+    this.loginStage = '同步手机网页会话';
+    const response = await this.request(data.data.url); await response.body?.cancel();
+    if (await this.mobileUID() !== expectedUid) throw new WeiboError('auth', '请使用当前签到账号扫码，手机网页账号不一致');
+    return 'ok';
   }
   async pollQR(qrid: string): Promise<'pending' | 'scanned' | 'expired' | 'ok'> {
     this.loginStage = '查询扫码状态';

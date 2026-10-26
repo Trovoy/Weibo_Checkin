@@ -51,6 +51,33 @@ test('concurrent starts schedule one job; alarm persists completion across objec
   assert.ok(!JSON.stringify(state).includes('super-secret'));
   assert.ok(!JSON.stringify([...storage.values]).includes('super-secret'));
 });
+test('optional personal-level QR merges only a verified same-account mobile session and preserves desktop credentials', async () => {
+  let mobileUid = '9999999999';
+  const { call, storage } = setup(async raw => {
+    const url = new URL(raw);
+    if (url.pathname.endsWith('/getPrivacy')) return Response.json({ ok: 1, data: { privacy: {} } });
+    if (url.pathname.endsWith('/getSpaConfig')) return Response.json({ ok: 1, data: { uid: '1234567890' } });
+    if (url.pathname.endsWith('/qrcode/image')) return Response.json({ retcode: 20000000, data: { qrid: 'private', image: 'https://v2.qr.weibo.cn/image.png' } });
+    if (url.pathname.endsWith('/qrcode/check')) return Response.json({ retcode: 20000000, data: { url: 'https://passport.weibo.com/sso/v2/login?ticket=private' } });
+    if (url.pathname.endsWith('/v2/login')) return new Response('', { status: 302, headers: { Location: 'https://passport.weibo.cn/sso/crossdomain', 'Set-Cookie': 'SUB=desktop-rotated; Domain=.weibo.com; Path=/; Secure' } });
+    if (url.pathname === '/sso/crossdomain') return new Response('', { headers: { 'Set-Cookie': 'SUB=mobile-private; Domain=.weibo.cn; Path=/; Secure' } });
+    if (url.pathname === '/api/config') return Response.json({ data: { login: true, uid: mobileUid } });
+    throw new Error('Unexpected request');
+  });
+  await call('cookie', { cookie: 'SUB=desktop-original' });
+  const before = (await storage.get('state')).credentials;
+  assert.equal((await call('qr/create', { mobile: true })).status, 200);
+  assert.equal((await call('qr/poll')).status, 502);
+  assert.equal((await storage.get('state')).credentials, before);
+  let qr = await open(await storage.get('qr'), key); qr.lastPoll = 0;
+  await storage.put('qr', await seal(qr, key)); mobileUid = '1234567890';
+  assert.deepEqual(await (await call('qr/poll')).json(), { status: 'ok', mobile: true });
+  const saved = await storage.get('state');
+  const cookies = await open(saved.credentials, key);
+  assert.equal(cookies.find(c => c.domain === 'weibo.com' && c.name === 'SUB').value, 'desktop-original');
+  assert.equal(cookies.find(c => c.domain === 'weibo.cn' && c.name === 'SUB').value, 'mobile-private');
+  assert.equal(saved.enabled, false); assert.equal(saved.login, 'valid'); assert.equal(saved.message, undefined);
+});
 test('expired login stops before any check-in, later alarms cannot continue it', async () => {
   let expired = false, posts = 0;
   const { account, call } = setup(async (_url, init) => {
