@@ -7,6 +7,7 @@ function resetPlatforms() {
   platformRegistry = []; nsSnapshot = undefined; nsRecords = []; nsError = ''; nsHistoryError = ''; nsLoadedMonth = ''; nsFormsReady = false;
   progressKey = ''; if (motion) motion.killTweensOf($('progress-ring'));
   $('progress-ring').setAttribute('stroke-dashoffset', '100');
+  if (typeof resetOverview === 'function') resetOverview();
   for (const id of ['ns-cookie', 'ns-ua']) $(id).value = '';
   for (const id of ['platform-list', 'history-body', 'ns-history-body']) $(id).replaceChildren();
 }
@@ -16,6 +17,7 @@ function chosenMonth() {
 }
 function renderPlatformCards() {
   renderOverviewProgress();
+  if (typeof renderRecentStats === 'function') renderRecentStats();
   $('platform-list').replaceChildren(); $('platform-count').textContent = platformRegistry.length ? `${platformRegistry.filter(p => p.available).length} 个服务已接入` : nsError ? '平台状态待确认' : '正在读取';
   for (const platform of platformRegistry) {
     const card = node('section', undefined, 'card platform-card'), heading = node('div', undefined, 'section-heading');
@@ -57,7 +59,7 @@ function renderOverviewProgress() {
   progressKey = key;
   const offset = pending || !total ? 100 : 100 - done / total * 100;
   if (motion) motion.killTweensOf($('progress-ring'));
-  if (!motion || reduceMotion.matches || $('overview').hidden) $('progress-ring').setAttribute('stroke-dashoffset', String(offset));
+  if (!motion || reduceMotion.matches || $('overview').hidden || $('stats-today').hidden) $('progress-ring').setAttribute('stroke-dashoffset', String(offset));
   else motion.to($('progress-ring'), { attr: { 'stroke-dashoffset': offset }, duration: .75, ease: 'power2.out' });
 }
 function renderNodeSeek() {
@@ -143,6 +145,7 @@ async function refreshPlatforms(forceHistory = false) {
         catch (error) { if (epoch !== platformEpoch) return; nsError = error.message; } }
       else { nsSnapshot = undefined; nsRecords = []; nsLoadedMonth = ''; nsFormsReady = false; nsError = ''; nsHistoryError = ''; }
       renderPlatformCards(); renderNodeSeek();
+      if (typeof loadRecentStats === 'function' && !$('stats-recent').hidden) await loadRecentStats(true);
       if (['#/nodeseek', '#/history'].includes(location.hash)) await loadPlatformHistory(forceHistory);
     } catch (error) { if (epoch === platformEpoch) { nsError = error.message; renderPlatformCards(); renderNodeSeek(); } }
     finally { if (platformPending === pending) platformPending = undefined; }

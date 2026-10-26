@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WeiboAccount, dayKey } from '../src/account.ts';
+import { WeiboAccount, dayKey, recentCompletions } from '../src/account.ts';
 import worker from '../src/index.ts';
 import { session, open, seal } from '../src/crypto.ts';
 const key = btoa('a'.repeat(32));
@@ -32,6 +32,30 @@ async function prepare(call, topics = [topic]) {
   assert.equal((await call('cookie', { cookie: 'SUB=super-secret' })).status, 200);
   assert.equal((await call('settings', { topics, enabled: true })).status, 200);
 }
+
+test('recent completion counts cover seven UTC+8 dates across months and years, deduplicate projects and retain confirmed history', () => {
+  const entry = (day, id, result) => ({ day, topic: { id, name: 'example' }, result, at: day + 'T01:00:00Z', message: '' });
+  const days = recentCompletions({ '2026-12-31': ['a','a','b'], '2027-01-01': ['c'], '2027-01-03': ['future'] }, '2027-01-02', [
+    entry('2026-12-31','a','already'), entry('2026-12-31','d','success'), entry('2026-12-31','failed','failed'), entry('2027-01-02','e','already')
+  ]);
+  assert.deepEqual(days, [
+    {date:'2026-12-27',count:0},{date:'2026-12-28',count:0},{date:'2026-12-29',count:0},
+    {date:'2026-12-30',count:0},{date:'2026-12-31',count:3},{date:'2027-01-01',count:1},{date:'2027-01-02',count:1}
+  ]);
+  assert.equal(recentCompletions({}, dayKey(new Date('2027-01-01T16:00:00Z'))).at(-1).date, '2027-01-02');
+});
+
+test('authenticated status reports daily counts from completion storage even when detailed history is truncated', async () => {
+  const { storage, call } = setup();
+  const current = await (await call('status')).json();
+  const ids = Array.from({length:30},(_,index) => 'topic-' + index);
+  const completed = Object.fromEntries(current.recentCompletions.map(day => [day.date, ids]));
+  await storage.put('state', { enabled:false, topics:[], login:'missing', history:[], completed, credentials:'encrypted-private-value' });
+  const result = await (await call('status')).json();
+  assert.equal(result.recentCompletions.reduce((sum,day) => sum + day.count,0),210);
+  assert.equal(result.history.length,0);
+  assert.ok(!JSON.stringify(result).includes('encrypted-private-value'));
+});
 test('concurrent starts schedule one job; alarm persists completion across object recreation', async () => {
   let posts = 0;
   const { account, storage, call, make } = setup(async (url, init) => {

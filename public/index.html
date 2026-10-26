@@ -7,6 +7,7 @@
   <script src="/vendor/gsap.min.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/platforms.js" defer></script>
+  <script src="/overview.js" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true"><defs>
@@ -40,16 +41,25 @@
         <section class="intro"><div><h1 id="page-heading" tabindex="-1">签到概览</h1><p class="muted" id="overview-copy">管理账号、超话和每日签到。</p></div><span class="date" id="date"></span></section>
         <div id="notice" class="notice" hidden></div>
         <div class="page" id="overview" data-page="overview">
-        <div class="section-heading"><h2>今日签到</h2><span class="fine" id="platform-count">正在读取</span></div>
+        <div class="section-heading"><h2>签到统计</h2><span class="fine" id="platform-count">正在读取</span></div>
         <div class="overview-platforms">
           <section class="card progress-card" aria-labelledby="progress-heading">
-            <div class="section-heading"><h3 id="progress-heading">完成进度</h3><span id="progress-badge" class="badge neutral">读取中</span></div>
+            <div class="section-heading"><h3 id="progress-heading">签到统计</h3><span id="progress-badge" class="badge neutral">读取中</span><span id="recent-badge" class="badge neutral" hidden>读取中</span></div>
+            <div class="stats-tabs" role="tablist" aria-label="签到统计视图"><button id="stats-today-tab" role="tab" aria-selected="true" aria-controls="stats-today">今日进度</button><button id="stats-recent-tab" role="tab" aria-selected="false" aria-controls="stats-recent" tabindex="-1">近 7 天</button></div>
+            <div id="stats-today" class="stats-panel" role="tabpanel" aria-labelledby="stats-today-tab">
             <div id="progress-chart" class="progress-chart" role="img" aria-label="正在读取今日签到进度">
               <svg viewBox="0 0 160 160" aria-hidden="true"><circle class="progress-track" cx="80" cy="80" r="65"/><circle id="progress-ring" class="progress-ring" cx="80" cy="80" r="65" pathLength="100" stroke-dasharray="100 100" stroke-dashoffset="100"/></svg>
               <div class="progress-center"><strong id="progress-percent">—</strong><span>今日完成率</span></div>
             </div>
             <p id="progress-count" class="progress-count">正在读取各平台状态</p>
             <p id="progress-note" class="fine">微博每个超话计 1 项，NodeSeek 每日计 1 项。</p>
+            </div>
+            <div id="stats-recent" class="stats-panel" role="tabpanel" aria-labelledby="stats-recent-tab" hidden>
+              <p class="recent-total"><strong id="recent-total">—</strong><span>项已确认完成</span></p>
+              <div id="recent-bars" class="recent-bars" role="list" aria-label="近七天每日完成数量"></div>
+              <div class="recent-legend"><span><i class="legend-weibo"></i>微博</span><span><i class="legend-ns"></i>NodeSeek</span></div>
+              <p id="recent-note" class="fine" role="status">选择后读取近 7 天记录。</p><button id="recent-retry" class="text-button" hidden>重试读取</button>
+            </div>
           </section>
           <div id="platform-list" class="platform-grid" aria-label="已接入的平台"></div>
         </div>

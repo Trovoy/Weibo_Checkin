@@ -168,7 +168,28 @@ html { scroll-padding-top: 20px; }
 .progress-center strong { font-size: 32px; font-weight: 600; line-height: 1.3; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
 .progress-center span { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .progress-count { text-align: center; margin: 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.progress-card > .fine { text-align: center; margin: 8px 0 0; }
+.stats-panel { min-height: 247px; }
+.stats-panel > .fine { text-align: center; margin: 8px 0 0; }
+.stats-tabs { display: flex; padding: 3px; gap: 3px; background: #f3f4f6; border-radius: 6px; margin: 14px 0; }
+.stats-tabs button { flex: 1; min-height: 28px; padding: 4px 8px; font-size: 12px; border: 0; background: transparent; color: var(--muted); }
+.stats-tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px #191b2012; }
+.recent-total { display: flex; align-items: baseline; gap: 6px; margin: 4px 0 12px; }
+.recent-total strong { font-size: 30px; line-height: 1.3; font-weight: 600; font-variant-numeric: tabular-nums; }
+.recent-total span { font-size: 12px; color: var(--muted); }
+.recent-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.recent-column { min-width: 0; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+.recent-value { display: block; line-height: 18px; color: var(--ink); }
+.recent-track { height: 100px; display: flex; align-items: end; border-bottom: 1px solid var(--line); }
+.recent-stack { width: 100%; display: flex; flex-direction: column-reverse; transform-origin: center bottom; }
+.recent-segment { display: block; background: #327458; }
+.recent-segment.ns { background: #8094b4; }
+.recent-date { display: block; margin-top: 5px; color: var(--muted); }
+.recent-column.today .recent-date { color: var(--ink); font-weight: 600; }
+.recent-legend { display: flex; justify-content: center; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+.recent-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.recent-legend i { width: 7px; height: 7px; border-radius: 2px; background: #327458; }
+.recent-legend .legend-ns { background: #8094b4; }
+#recent-retry { display: block; margin: 2px auto 0; min-height: 24px; font-size: 12px; }
 .platform-card { padding: 20px; }
 .platform-card h3 { margin: 0; font-size: 15px; font-weight: 600; }
 .platform-status { font-size: 22px; font-weight: 600; margin: 16px 0 5px; }
@@ -190,10 +211,7 @@ select { min-height: 36px; border: 1px solid #dce0e6; border-radius: 6px; paddin
 @media (max-width: 1150px) { .shell { grid-template-columns: 180px minmax(0, 1fr); } main { padding: 0 20px 24px; } .stats { gap: 10px; } .stat { padding: 16px; } }
 @media (min-width: 681px) and (max-width: 1000px) {
   .overview-platforms { grid-template-columns: 1fr; }
-  .progress-card { display: grid; grid-template-columns: 160px minmax(0, 1fr); column-gap: 28px; align-items: center; }
-  .progress-card .section-heading { grid-column: 2; grid-row: 1; margin: 0; }
-  .progress-chart { grid-column: 1; grid-row: 1 / 4; margin: 0; }
-  .progress-count, .progress-card > .fine { grid-column: 2; text-align: left; }
+  .stats-panel, .stats-tabs { max-width: 400px; margin-left: auto; margin-right: auto; }
 }
 @media (max-width: 680px) {
   .shell { display: block; }
