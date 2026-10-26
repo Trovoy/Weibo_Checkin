@@ -184,10 +184,10 @@ html { scroll-padding-top: 20px; }
 .recent-stack { width: 54%; max-width: 16px; display: flex; flex-direction: column-reverse; transform-origin: center bottom; border-radius: 5px 5px 3px 3px; overflow: hidden; }
 .recent-segment { display: block; background: linear-gradient(90deg, #526d8b, #6c86a3); }
 .recent-segment.ns { background: #b0c0d3; }
-.recent-date { display: inline-block; min-width: 25px; line-height: 22px; margin-top: 5px; color: #778191; font-size: 10px; border-radius: 5px; }
-.recent-column.today .recent-date { color: #354f6c; background: #edf2f8; font-weight: 600; padding: 0 4px; }
+.recent-date { display: inline-block; min-width: 25px; line-height: 22px; margin-top: 5px; color: #6d7786; font-size: 10px; border-radius: 5px; white-space: nowrap; }
+.recent-column.today .recent-date { color: #354f6c; background: #edf2f8; font-weight: 600; min-width: 30px; padding: 0 4px; }
 .recent-column.today:not(.is-empty) .recent-value { color: #fff; background: #354f6c; min-width: 24px; }
-.recent-column.is-empty .recent-value { color: #9aa3af; font-weight: 400; }
+.recent-column.is-empty .recent-value { color: #6e7989; font-weight: 400; }
 .recent-legend { display: flex; justify-content: center; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 12px; }
 .recent-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .recent-legend i { width: 7px; height: 7px; border-radius: 2px; background: #607c9a; }
