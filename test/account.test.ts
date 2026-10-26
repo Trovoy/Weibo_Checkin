@@ -24,7 +24,7 @@ function setup(transport) {
   };
   const account = make();
   const call = (path, body = {}) => account.fetch(new Request('https://local/api/' + path, {
-    method: path === 'status' ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json' }, body: path === 'status' ? undefined : JSON.stringify(body)
+    method: ['status', 'avatar'].includes(path) ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json' }, body: ['status', 'avatar'].includes(path) ? undefined : JSON.stringify(body)
   }));
   return { storage, account, call, make };
 }
@@ -77,6 +77,25 @@ test('optional personal-level QR merges only a verified same-account mobile sess
   assert.equal(cookies.find(c => c.domain === 'weibo.com' && c.name === 'SUB').value, 'desktop-original');
   assert.equal(cookies.find(c => c.domain === 'weibo.cn' && c.name === 'SUB').value, 'mobile-private');
   assert.equal(saved.enabled, false); assert.equal(saved.login, 'valid'); assert.equal(saved.message, undefined);
+});
+test('account identity persists privately, avatar fetch never forwards cookies, logout clears identity', async () => {
+  const { call } = setup(async (raw, init) => {
+    const url = new URL(raw);
+    if (url.hostname.endsWith('.sinaimg.cn')) {
+      assert.equal(new Headers(init.headers).get('Cookie'), null); assert.equal(init.redirect, 'error');
+      return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/jpeg' } });
+    }
+    if (url.pathname.endsWith('/getPrivacy')) return Response.json({ ok: 1, data: { privacy: {} } });
+    if (url.pathname.endsWith('/getSpaConfig')) return Response.json({ ok: 1, data: { uid: '1234567890' } });
+    return Response.json({ ok: 1, data: { user: { idstr: '1234567890', screen_name: '示例', avatar_large: 'https://tvax1.sinaimg.cn/avatar.jpg' } } });
+  });
+  await call('cookie', { cookie: 'SUB=private' });
+  assert.equal((await (await call('profile')).json()).profile.name, '示例');
+  assert.equal((await (await call('status')).json()).profile.uid, '1234567890');
+  const avatar = await call('avatar'); assert.equal(avatar.headers.get('Content-Type'), 'image/jpeg');
+  assert.deepEqual(new Uint8Array(await avatar.arrayBuffer()), new Uint8Array([1, 2, 3]));
+  await call('logout'); assert.equal((await (await call('status')).json()).profile, undefined);
+  assert.equal((await call('avatar')).status, 404);
 });
 test('expired login stops before any check-in, later alarms cannot continue it', async () => {
   let expired = false, posts = 0;

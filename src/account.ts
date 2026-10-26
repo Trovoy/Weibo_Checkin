@@ -1,6 +1,6 @@
 import { CookieJar, type Cookie } from './cookies.ts';
 import { open, seal } from './crypto.ts';
-import { WeiboClient, WeiboError } from './weibo.ts';
+import { WeiboClient, WeiboError, UA, type AccountProfile } from './weibo.ts';
 
 export interface Env {
   ACCOUNT: DurableObjectNamespace;
@@ -16,6 +16,7 @@ interface State {
   enabled: boolean; topics: Topic[]; credentials?: string;
   login: 'missing' | 'valid' | 'expired' | 'blocked';
   lastChecked?: string; message?: string; job?: Job;
+  profile?: AccountProfile;
   history: Entry[]; completed: Record<string, string[]>; lastAlert?: string;
 }
 interface QR { qrid: string; image: string; cookies: Cookie[]; expires: number; lastPoll: number; mobile?: boolean; expectedUid?: string }
@@ -88,7 +89,7 @@ export class WeiboAccount {
   private view(state: State) {
     return { enabled: state.enabled, topics: state.topics, login: state.login, lastChecked: state.lastChecked,
       message: state.message, job: state.job, history: state.history, today: dayKey(),
-      completedToday: state.completed[dayKey()] ?? [], hasCredentials: !!state.credentials };
+      completedToday: state.completed[dayKey()] ?? [], hasCredentials: !!state.credentials, profile: state.profile };
   }
   private async start(state: State) {
     if (state.job?.status === 'running') return { started: false, message: '已有正在执行的任务' };
@@ -111,7 +112,7 @@ export class WeiboAccount {
     return this.exclusive(async () => {
       try {
         const result = await this.route(request);
-        return Response.json(result);
+        return result instanceof Response ? result : Response.json(result);
       } catch (error) {
         if (error instanceof HttpError) return Response.json({ error: error.message }, { status: error.status });
         if (error instanceof WeiboError) return Response.json({ error: error.message }, { status: 502 });
@@ -123,12 +124,34 @@ export class WeiboAccount {
     const path = new URL(request.url).pathname;
     const state = await this.load();
     if (path === '/api/status' && request.method === 'GET') return this.view(state);
+    if (path === '/api/avatar' && request.method === 'GET') {
+      if (!state.credentials || !state.profile?.avatar) throw new HttpError(404, '头像暂不可用');
+      const url = new URL(state.profile.avatar);
+      if (url.protocol !== 'https:' || url.username || url.password || url.port || !url.hostname.endsWith('.sinaimg.cn')) throw new HttpError(404, '头像地址不受支持');
+      let response: Response;
+      try { response = await this.transport(url, { headers: { 'User-Agent': UA, Referer: 'https://weibo.com/' }, redirect: 'error', signal: AbortSignal.timeout(10000) }); }
+      catch { throw new HttpError(404, '头像暂不可用'); }
+      const type = response.headers.get('Content-Type')?.split(';')[0] ?? '';
+      if (!response.ok || !['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(type) || Number(response.headers.get('Content-Length')) > 1024 * 1024) {
+        await response.body?.cancel(); throw new HttpError(404, '头像暂不可用');
+      }
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength > 1024 * 1024) throw new HttpError(404, '头像过大');
+      return new Response(bytes, { headers: { 'Content-Type': type } });
+    }
     if (request.method !== 'POST') throw new HttpError(404, '接口不存在');
     if (path === '/internal/cron') {
       if (!state.enabled || state.login !== 'valid' || !state.topics.length) return { skipped: true };
       return this.start(state);
     }
     if (path === '/api/run') return this.start(state);
+    if (path === '/api/profile') {
+      this.idle(state);
+      if (state.login !== 'valid') throw new HttpError(409, '请先连接微博账号');
+      const client = await this.client(state);
+      try { state.profile = await client.accountProfile(); return { profile: state.profile }; }
+      finally { await this.remember(state, client); }
+    }
     if (path === '/api/topics/levels') {
       this.idle(state);
       const input = await request.json() as { cursor?: unknown };
@@ -172,7 +195,7 @@ export class WeiboAccount {
     }
     if (path === '/api/logout') {
       this.idle(state);
-      state.credentials = undefined; state.login = 'missing'; state.message = undefined;
+      state.credentials = undefined; state.login = 'missing'; state.message = undefined; state.profile = undefined;
       state.enabled = false; state.lastChecked = undefined;
       state.completed = {};
       await this.ctx.storage.delete('qr'); await this.save(state);
@@ -187,7 +210,7 @@ export class WeiboAccount {
       const client = new WeiboClient(jar, this.transport);
       await client.validate();
       // Do not replace the existing working credentials until the new login is verified.
-      state.login = 'valid'; state.lastChecked = new Date().toISOString(); state.message = undefined; state.lastAlert = undefined;
+      state.login = 'valid'; state.lastChecked = new Date().toISOString(); state.message = undefined; state.lastAlert = undefined; state.profile = undefined;
       await this.remember(state, client); await this.ctx.storage.delete('qr');
       return { message: 'Cookie 已验证并加密保存' };
     }
@@ -246,7 +269,7 @@ export class WeiboAccount {
             await this.remember(state, original); await this.ctx.storage.delete('qr');
             return { status, mobile: true };
           }
-          state.login = 'valid'; state.message = undefined; state.lastAlert = undefined; state.lastChecked = new Date().toISOString();
+          state.login = 'valid'; state.message = undefined; state.lastAlert = undefined; state.lastChecked = new Date().toISOString(); state.profile = undefined;
           await this.remember(state, client); await this.ctx.storage.delete('qr');
         } else if (status === 'expired') await this.ctx.storage.delete('qr');
         else {

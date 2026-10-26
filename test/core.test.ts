@@ -170,3 +170,14 @@ test('mobile QR validates same-account login before allowing credentials to be p
   await assert.rejects(() => client.pollMobileQR('private-qr', '9999999999'), /账号不一致/);
   assert.equal(client.jar.header(new URL('https://weibo.com/')), '');
 });
+test('account profile checks self identity and sanitizes avatar destinations', async () => {
+  let avatar = 'https://evil.test/private.png', returnedUid = '1234567890';
+  const client = new WeiboClient(new CookieJar(), async raw => new URL(raw).pathname.endsWith('getSpaConfig')
+    ? Response.json({ ok: 1, data: { uid: '1234567890' } })
+    : Response.json({ ok: 1, data: { user: { idstr: returnedUid, screen_name: ' 示例昵称 ', avatar_large: avatar } } }));
+  assert.deepEqual(await client.accountProfile(), { uid: '1234567890', name: '示例昵称', avatar: undefined });
+  avatar = 'https://tvax1.sinaimg.cn/avatar.jpg';
+  assert.equal((await client.accountProfile()).avatar, avatar);
+  returnedUid = '9999999999';
+  await assert.rejects(() => client.accountProfile(), /账号资料/);
+});

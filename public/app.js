@@ -1,16 +1,79 @@
 const $ = id => document.getElementById(id);
-let state, statusTimer, qrTimer, toastTimer, qrExpires = 0, qrMobile = false;
+let state, statusTimer, qrTimer, toastTimer, qrExpires = 0, qrMobile = false, loginExpanded = false, profileAttemptAt = 0, avatarKey = '';
 const labels = { missing: '未连接', valid: '已连接', expired: '需重新登录', blocked: '需安全验证' };
 const busy = new Set();
+const motion = window.gsap, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const pages = {
+  overview: ['签到概览', '查看每日签到进度、当前配置和最近结果。'],
+  topics: ['我的超话', '读取已关注的超话，管理签到列表与自动签到。'],
+  account: ['微博账号', '查看当前账号，管理登录和个人等级连接。'],
+  history: ['签到记录', '查看最近 200 条签到记录与执行结果。']
+};
+function enter(target, stagger = 0) {
+  if (!motion || reduceMotion.matches) return;
+  motion.fromTo(target, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .24, stagger, ease: 'power2.out', clearProps: 'opacity,transform', overwrite: true });
+}
+function showPage(animate = true) {
+  const raw = location.hash.replace(/^#\/?/, ''), key = Object.hasOwn(pages, raw) ? raw : 'overview';
+  if (location.hash !== '#/' + key) history.replaceState(null, '', '#/' + key);
+  document.querySelectorAll('[data-page]').forEach(page => { page.hidden = page.dataset.page !== key; });
+  document.querySelectorAll('nav a').forEach(link => {
+    const active = link.hash === '#/' + key; link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+  $('page-heading').textContent = pages[key][0]; $('page-label').textContent = pages[key][0];
+  $('overview-copy').textContent = pages[key][1]; $('date').hidden = key !== 'overview';
+  document.title = pages[key][0] + ' · 每日';
+  if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelector('[data-page="' + key + '"]')); $('page-heading').focus({ preventScroll: true }); }
+}
+function navigate(hash) {
+  const key = hash.replace(/^#\/?/, '');
+  if (!Object.hasOwn(pages, key)) return;
+  if (location.hash === '#/' + key) showPage(); else location.hash = '#/' + key;
+}
+function loginPanel(show, animate = false) {
+  const panel = $('login-panel');
+  const shouldShow = show || state?.login !== 'valid';
+  $('hide-login').hidden = state?.login !== 'valid';
+  if (panel.hidden === !shouldShow) return;
+  if (motion) motion.killTweensOf(panel);
+  if (!animate || !motion || reduceMotion.matches) { if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' }); panel.hidden = !shouldShow; return; }
+  if (shouldShow) {
+    panel.hidden = false;
+    motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .25, ease: 'power2.out', clearProps: 'height,opacity,overflow' });
+  } else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
+}
+function renderAccount() {
+  const connected = state.login === 'valid', profile = state.profile;
+  $('account-profile').hidden = !connected && !profile;
+  $('account-copy').textContent = connected ? '登录信息已加密保存。' : '扫码连接账号，失效后可在这里重新登录。';
+  $('account-name').textContent = profile?.name || '已连接微博账号';
+  $('account-uid').textContent = profile ? `UID ${profile.uid}` : '账号资料加载中…';
+  if (profile) $('account-name').href = 'https://weibo.com/u/' + profile.uid;
+  else $('account-name').removeAttribute('href');
+  $('avatar-fallback').textContent = profile?.name?.slice(0, 1).toUpperCase() || '◎';
+  if (profile?.avatar && avatarKey !== profile.uid + profile.avatar) {
+    avatarKey = profile.uid + profile.avatar; $('account-avatar').src = '/api/avatar?v=' + Date.now();
+  }
+  if (!profile?.avatar) $('account-avatar').removeAttribute('src');
+  const avatarLoaded = !!profile?.avatar && $('account-avatar').complete && $('account-avatar').naturalWidth > 0;
+  $('account-avatar').hidden = !avatarLoaded; $('avatar-fallback').hidden = avatarLoaded;
+  loginPanel(loginExpanded);
+}
 function toast(text, error = false) {
   $('toast').textContent = text; $('toast').classList.toggle('error', error); $('toast').hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6000);
+  if (motion) {
+    motion.set($('toast'), { xPercent: -50 });
+    if (!reduceMotion.matches) motion.fromTo($('toast'), { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .2, ease: 'power2.out', clearProps: 'opacity', overwrite: true });
+  }
 }
 function lock() {
   clearTimeout(statusTimer); clearTimeout(qrTimer);
   $('unlock').hidden = false; $('dashboard').hidden = true; $('lock').hidden = true;
   $('cookie').value = ''; $('qr-image').hidden = true; $('qr-image').removeAttribute('src');
   $('followed-results').replaceChildren(); $('followed-feedback').textContent = ''; $('connect-levels').hidden = true;
+  $('account-avatar').removeAttribute('src'); $('account-name').textContent = ''; $('account-uid').textContent = ''; avatarKey = '';
   $('qr-placeholder').hidden = false;
 }
 async function api(path, body) {
@@ -36,6 +99,7 @@ function syncControls() {
   for (const id of ['create-qr', 'validate', 'disconnect']) $(id).disabled = running;
   $('load-followed').disabled = busy.has('load-followed') || running || state.login !== 'valid';
   $('connect-levels').disabled = busy.has('connect-levels') || running || state.login !== 'valid';
+  $('show-login').disabled = running;
 }
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -67,13 +131,18 @@ function render(settings = false) {
   $('login-stat').textContent = labels[state.login]; $('account-badge').textContent = labels[state.login];
   $('last-check').textContent = state.lastChecked ? '上次检测 ' + time(state.lastChecked) : '等待首次登录';
   $('schedule-stat').textContent = state.enabled ? '已开启' : '已关闭';
-  $('overview-copy').textContent = state.login === 'valid' ? '账号已连接，今天也为喜欢的超话留个脚印。' : '连接账号，开始你的超话签到。';
   $('notice').hidden = !state.message; $('notice').textContent = state.message || '';
   const job = state.job, running = job?.status === 'running';
-  $('run-title').textContent = running ? '正在签到，稍等片刻' : job?.status === 'done' ? '这一轮签到已完成' : job?.status === 'stopped' ? '签到任务已停止' : '让热爱成为日常';
+  $('run-title').textContent = running ? '正在签到' : job?.status === 'done' ? '本轮签到已完成' : job?.status === 'stopped' ? '签到任务已停止' : '准备开始签到';
   $('run-detail').textContent = running ? `已处理 ${job.index} / ${job.topics.length} 个超话` : job?.message || '每次签到前检测登录状态，今天已完成的超话会自动跳过。';
   $('run').hidden = running; $('stop').hidden = !running;
   syncControls();
+  renderAccount();
+  $('summary-account').textContent = state.profile?.name || labels[state.login];
+  $('summary-topics').textContent = `${state.topics.length} 个`;
+  const last = state.history[0];
+  $('summary-last-topic').textContent = last?.topic.name || '暂无记录';
+  $('summary-last-result').textContent = last ? `${{ success: '签到成功', already: '今日已签', failed: '未完成' }[last.result]} · ${time(last.at)}` : '添加超话后即可开始签到。';
   $('history-body').replaceChildren(); $('empty-history').hidden = state.history.length > 0;
   for (const entry of state.history) {
     const tr = node('tr'); tr.append(node('td', entry.topic.name), node('td', time(entry.at)));
@@ -82,31 +151,41 @@ function render(settings = false) {
   }
   if (settings) {
     $('enabled').checked = state.enabled; $('topic-list').replaceChildren();
+    if (motion) motion.set($('switch-knob'), { x: state.enabled ? 15 : 0 });
+    else $('switch-knob').style.transform = `translateX(${state.enabled ? 15 : 0}px)`;
     $('empty-topics').hidden = state.topics.length > 0;
     state.topics.forEach(addTopic);
   }
+  showPage(false);
 }
 function time(value) {
   return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 async function refresh(settings = false) {
+  const entering = $('dashboard').hidden;
   state = await api('status');
   $('unlock').hidden = true; $('dashboard').hidden = false; $('lock').hidden = false;
   render(settings);
+  if (entering) enter(document.querySelector('[data-page]:not([hidden])'));
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => refresh().catch(e => { toast(e.message, true); }), state.job?.status === 'running' ? 4000 : 60000);
+  if (state.login === 'valid' && !state.profile && state.job?.status !== 'running' && Date.now() - profileAttemptAt > 60000) {
+    profileAttemptAt = Date.now();
+    try { const data = await api('profile', {}); state.profile = data.profile; renderAccount(); $('summary-account').textContent = data.profile.name; }
+    catch { $('account-uid').textContent = '资料暂不可用，可重新检测'; }
+  }
 }
 async function pollQR() {
   if (Date.now() > qrExpires) { clearQR('二维码已过期，请重新生成'); return; }
   try {
     const data = await api('qr/poll', {});
     if (data.status === 'ok') {
-      qrMobile = false;
+      qrMobile = false; loginExpanded = false; profileAttemptAt = 0;
       clearQR(data.mobile ? '个人等级账号已连接' : '账号已连接'); toast(data.mobile ? '手机网页登录成功，可重新读取等级' : '微博登录成功');
-      await refresh(); if (data.mobile) $('load-followed').click(); return;
+      await refresh(); if (data.mobile) { navigate('#/topics'); $('load-followed').click(); } return;
     }
     if (data.status === 'expired') { clearQR('二维码已过期或被取消，请重新生成'); return; }
-    $('qr-status').textContent = data.status === 'scanned' ? '已扫码，请在微博 App 确认登录' : '请用微博 App 扫码并确认登录';
+    $('qr-status').textContent = data.status === 'scanned' ? '已扫码，请在微博 App 确认登录' : qrMobile ? '等级登录：请用当前账号扫码并确认' : '请用微博 App 扫码并确认登录';
     qrTimer = setTimeout(pollQR, 3500);
   } catch (error) { clearQR('扫码暂不可用，可使用 Cookie 备用登录'); toast(error.message, true); }
 }
@@ -114,6 +193,15 @@ function clearQR(message) {
   clearTimeout(qrTimer); $('qr-image').hidden = true; $('qr-image').removeAttribute('src');
   $('qr-placeholder').hidden = false; $('qr-status').textContent = message; $('create-qr').textContent = '生成登录二维码';
 }
+$('show-login').addEventListener('click', () => { qrMobile = false; loginExpanded = true; loginPanel(true, true); });
+$('hide-login').addEventListener('click', () => { clearQR('二维码已收起'); loginExpanded = false; loginPanel(false, true); });
+$('account-avatar').addEventListener('error', () => { $('account-avatar').hidden = true; $('avatar-fallback').hidden = false; });
+$('account-avatar').addEventListener('load', () => { $('account-avatar').hidden = false; $('avatar-fallback').hidden = true; });
+$('enabled').addEventListener('change', () => {
+  const x = $('enabled').checked ? 15 : 0;
+  if (motion && !reduceMotion.matches) motion.to($('switch-knob'), { x, duration: .18, ease: 'power2.out', overwrite: true });
+  else $('switch-knob').style.transform = `translateX(${x}px)`;
+});
 $('unlock-form').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
     const token = $('token').value; $('token').value = '';
@@ -163,6 +251,7 @@ $('load-followed').addEventListener('click', () => action($('load-followed'), as
       }
     }
     $('followed-feedback').textContent = topics.size ? `已读取 ${topics.size} 个关注。${levelMessage || '等级为你在各超话的个人等级。'} 选择加入后请保存设置。` : '当前账号没有关注的超话。';
+    enter($('followed-results').children, .018);
   } catch (error) { $('followed-feedback').textContent = `已读取 ${topics.size} 个超话。${error.message}`; throw error; }
 }));
 $('topic-search-form').addEventListener('submit', event => {
@@ -196,11 +285,13 @@ $('settings-form').addEventListener('submit', event => {
 $('cookie-form').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
     const cookie = $('cookie').value; $('cookie').value = '';
-    const data = await api('cookie', { cookie }); toast(data.message); clearQR('账号已连接'); await refresh();
+    const data = await api('cookie', { cookie }); toast(data.message); clearQR('账号已连接'); loginExpanded = false; qrMobile = false; profileAttemptAt = 0; await refresh();
   });
 });
 async function startQR(mobile = false) {
   qrMobile = mobile;
+  loginExpanded = true; loginPanel(true, true);
+  $('login-purpose').textContent = mobile ? '连接个人等级 · 手机网页' : '重新连接微博账号';
   clearTimeout(qrTimer); const data = await api('qr/create', { mobile });
   qrExpires = data.expires; $('qr-image').src = data.image;
   $('qr-image').hidden = false; $('qr-placeholder').hidden = true;
@@ -208,20 +299,25 @@ async function startQR(mobile = false) {
   qrTimer = setTimeout(pollQR, 3500);
 }
 $('create-qr').addEventListener('click', () => action($('create-qr'), () => startQR(qrMobile)));
-$('connect-levels').addEventListener('click', () => action($('connect-levels'), async () => { await startQR(true); location.hash = 'account'; }));
+$('connect-levels').addEventListener('click', () => action($('connect-levels'), async () => { await startQR(true); navigate('#account'); }));
 $('qr-image').addEventListener('error', () => { clearQR('二维码图片加载失败，可使用 Cookie 备用登录'); });
 for (const [id, path] of [['validate', 'validate'], ['run', 'run'], ['stop', 'stop']]) {
   $(id).addEventListener('click', () => action($(id), async () => {
-    try { const data = await api(path, {}); toast(data.message); }
+    try { const data = await api(path, {}); if (id === 'validate') { profileAttemptAt = 0; state.profile = undefined; await api('profile', {}).catch(() => {}); } toast(data.message); }
     finally { await refresh(); }
   }));
 }
 $('disconnect').addEventListener('click', () => action($('disconnect'), async () => {
   if (!confirm('删除已保存的微博登录信息，并关闭自动签到？')) return;
-  await api('logout', {}); clearQR('无需提供账号密码'); await refresh(true); toast('微博账号已断开');
+  await api('logout', {}); clearQR('无需提供账号密码'); avatarKey = ''; qrMobile = false; loginExpanded = false;
+  $('followed-results').replaceChildren(); $('followed-feedback').textContent = ''; $('connect-levels').hidden = true;
+  $('search-results').replaceChildren(); $('search-feedback').textContent = '';
+  await refresh(true); toast('微博账号已断开');
 }));
 $('refresh').addEventListener('click', () => action($('refresh'), () => refresh()));
-for (const link of document.querySelectorAll('nav a')) link.addEventListener('click', () => {
-  document.querySelector('nav .active')?.classList.remove('active'); link.classList.add('active');
+for (const link of document.querySelectorAll('a[href^="#/"]')) link.addEventListener('click', event => {
+  event.preventDefault(); navigate(link.hash);
 });
+window.addEventListener('hashchange', () => showPage());
+showPage(false);
 refresh(true).catch(error => { if (error.message !== '请使用管理密钥解锁控制台') toast(error.message, true); });

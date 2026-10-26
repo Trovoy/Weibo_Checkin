@@ -16,6 +16,7 @@ export function allowedURL(raw: string | URL): URL {
 }
 type Data = Record<string, any>;
 export interface FollowedTopic { id: string; name: string; level: number | null }
+export interface AccountProfile { uid: string; name: string; avatar?: string }
 export function parseFollowedCards(cards: unknown): FollowedTopic[] {
   const found = new Map<string, FollowedTopic>();
   const visit = (items: unknown, depth = 0) => {
@@ -145,6 +146,20 @@ export class WeiboClient {
     const uid = String(config.data?.uid || config.data?.user?.idstr || config.data?.user?.id || '');
     if (Number(config.ok) !== 1 || !/^\d{5,20}$/.test(uid)) throw new WeiboError('auth', '未能识别当前微博账号，请重新检测登录状态');
     return uid;
+  }
+  async accountProfile(): Promise<AccountProfile> {
+    const uid = await this.selfUID();
+    const data = await this.json('https://weibo.com/ajax/profile/info?uid=' + uid);
+    const user = data.data?.user;
+    if (Number(data.ok) !== 1 || !user || String(user.idstr ?? user.id) !== uid || typeof user.screen_name !== 'string' || !user.screen_name.trim()) {
+      throw new WeiboError('protocol', '暂未读取到账号资料，请稍后重新检测');
+    }
+    let avatar: string | undefined;
+    try {
+      const url = new URL(user.avatar_large ?? user.profile_image_url ?? '');
+      if (url.protocol === 'https:' && !url.username && !url.password && !url.port && (url.hostname === 'sinaimg.cn' || url.hostname.endsWith('.sinaimg.cn'))) avatar = url.href;
+    } catch { /* A missing avatar must not hide the verified account identity. */ }
+    return { uid, name: user.screen_name.trim().slice(0, 80), avatar };
   }
   async mobileUID() {
     const config = await this.json('https://m.weibo.cn/api/config');
