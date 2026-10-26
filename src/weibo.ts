@@ -9,12 +9,34 @@ export function allowedURL(raw: string | URL): URL {
   const url = new URL(raw.toString());
   if (url.protocol === 'http:') url.protocol = 'https:';
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443') ||
-    !['weibo.com', 'www.weibo.com', 'login.sina.com.cn', 'passport.weibo.com', 'passport.weibo.cn', 'passport.sina.com.cn', 'passport.sina.cn'].includes(url.hostname)) {
+    !['weibo.com', 'www.weibo.com', 's.weibo.com', 'login.sina.com.cn', 'passport.weibo.com', 'passport.weibo.cn', 'passport.sina.com.cn', 'passport.sina.cn'].includes(url.hostname)) {
     throw new WeiboError('protocol', `微博返回了不受支持的登录地址（${url.hostname}）`);
   }
   return url;
 }
 type Data = Record<string, any>;
+export function parseTopicSearch(html: string, query: string): { id: string; name: string }[] {
+  const decode = (value: string) => value.replace(/<[^>]*>/g, '').replace(/&#(x[\da-f]+|\d+);/gi, (_, raw: string) => {
+    const code = raw[0].toLowerCase() === 'x' ? parseInt(raw.slice(1), 16) : Number(raw);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+  }).replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+  const found = new Map<string, { id: string; name: string }>();
+  for (const anchor of html.matchAll(/<a\b([^>]*?)>([\s\S]*?)<\/a>/gi)) {
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(anchor[1])?.[1];
+    if (!href) continue;
+    let url: URL;
+    try { url = new URL(decode(href), 'https://s.weibo.com'); } catch { continue; }
+    if (!['weibo.com', 'www.weibo.com'].includes(url.hostname)) continue;
+    const id = /^\/p\/(100808[a-f0-9]{32})(?:\/|$)/i.exec(url.pathname)?.[1]?.toLowerCase();
+    if (!id) continue;
+    const title = /\btitle\s*=\s*["']([^"']+)["']/i.exec(anchor[1])?.[1];
+    const name = decode(title || anchor[2]).replace(/^[#＃]|[#＃]$/g, '').replace(/超话$/, '').trim();
+    if (!name || name.length > 60 || /^(?:进入|查看|更多|关注)/.test(name)) continue;
+    if (!found.has(id)) found.set(id, { id, name });
+  }
+  const normalized = query.replace(/超话$/, '').trim().toLowerCase();
+  return [...found.values()].sort((a, b) => Number(b.name.toLowerCase() === normalized) - Number(a.name.toLowerCase() === normalized)).slice(0, 12);
+}
 export function parsePayload(text: string): Data {
   const body = text.trim();
   try {
@@ -36,7 +58,7 @@ export class WeiboClient {
     for (let hop = 0; hop < 7; hop++) {
       const headers = new Headers(options.headers);
       headers.set('User-Agent', UA);
-      headers.set('Referer', 'https://weibo.com/');
+      headers.set('Referer', url.hostname === 's.weibo.com' ? 'https://s.weibo.com/' : 'https://weibo.com/');
       headers.set('Cookie', this.jar.header(url));
       headers.set('Accept', 'application/json, text/plain, */*');
       if (url.hostname === 'weibo.com') {
@@ -89,6 +111,15 @@ export class WeiboClient {
     if (Number(data.ok) !== 1 || !data.data || !Object.hasOwn(data.data, 'privacy')) {
       throw new WeiboError('auth', '未能确认微博登录状态，请重新登录');
     }
+  }
+  async searchTopics(query: string) {
+    const url = new URL('https://s.weibo.com/weibo');
+    url.searchParams.set('q', query.endsWith('超话') ? query : query + '超话');
+    const response = await this.request(url);
+    const html = await response.text();
+    if (html.length > 2 * 1024 * 1024) throw new WeiboError('protocol', '微博搜索响应过大，请换一个关键词');
+    if (/登录后查看|访问频次过高|访问频率过高|完成验证/.test(html)) throw new WeiboError('risk', '微博搜索暂时要求验证，请稍后再试或使用超话链接添加');
+    return parseTopicSearch(html, query);
   }
   async createQR() {
     const data = await this.json(`https://login.sina.com.cn/sso/qrcode/image?entry=weibo&size=180&callback=STK_qr&_=${Date.now()}`);

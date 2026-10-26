@@ -46,7 +46,12 @@ function addTopic(topic = { id: '', name: '' }) {
   name.setAttribute('aria-label', '超话名称'); name.required = true; name.className = 'topic-name';
   const id = node('input'); id.value = topic.id; id.placeholder = '粘贴超话链接或 100808… ID'; id.required = true;
   id.setAttribute('aria-label', '超话链接或 ID'); id.className = 'topic-id';
+  if (topic.id) id.type = 'hidden';
   fields.append(name, id);
+  if (topic.id) {
+    const link = node('a', '在微博查看 ↗', 'topic-link'); link.href = 'https://weibo.com/p/' + topic.id;
+    link.target = '_blank'; link.rel = 'noreferrer'; fields.append(link);
+  }
   const remove = node('button', '×', 'remove'); remove.type = 'button'; remove.setAttribute('aria-label', '移除此超话');
   remove.addEventListener('click', () => { row.remove(); $('empty-topics').hidden = $('topic-list').children.length > 0; });
   row.append(fields, remove); $('topic-list').append(row); $('empty-topics').hidden = true;
@@ -108,6 +113,29 @@ $('unlock-form').addEventListener('submit', event => {
   });
 });
 $('lock').addEventListener('click', () => action($('lock'), async () => { await api('session/logout', {}); lock(); }));
+$('topic-search-form').addEventListener('submit', event => {
+  event.preventDefault(); action(event.submitter, async () => {
+    $('search-results').replaceChildren(); $('search-feedback').textContent = '正在搜索…';
+    try {
+      const data = await api('topics/search', { query: $('topic-query').value.trim() });
+      $('search-feedback').textContent = data.topics.length ? `找到 ${data.topics.length} 个超话，选择后保存设置。` : '未找到匹配超话，试试完整名称，或通过链接添加。';
+      for (const topic of data.topics) {
+        const row = node('div', undefined, 'search-result');
+        const name = node('a', topic.name); name.href = 'https://weibo.com/p/' + topic.id; name.target = '_blank'; name.rel = 'noreferrer';
+        const button = node('button', '加入', 'result-add'); button.type = 'button';
+        const exists = () => Array.from(document.querySelectorAll('.topic-id')).some(input => input.value === topic.id);
+        if (exists()) { button.textContent = '已加入'; button.disabled = true; }
+        button.addEventListener('click', () => {
+          if (exists()) return;
+          if ($('topic-list').children.length >= 30) { toast('最多配置 30 个超话', true); return; }
+          addTopic(topic); button.textContent = '已加入'; button.disabled = true; toast('已加入列表，请保存设置');
+        });
+        row.append(name, button); $('search-results').append(row);
+      }
+    } catch (error) { $('search-feedback').textContent = error.message; throw error; }
+  });
+});
+$('add-topic').textContent = '＋ 通过链接或 ID 添加';
 $('add-topic').addEventListener('click', () => {
   if ($('topic-list').children.length >= 30) { toast('最多配置 30 个超话', true); return; }
   addTopic();

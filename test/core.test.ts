@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CookieJar } from '../src/cookies.ts';
 import { open, seal, session, validSession } from '../src/crypto.ts';
-import { WeiboClient, WeiboError, allowedURL, parsePayload } from '../src/weibo.ts';
+import { WeiboClient, WeiboError, allowedURL, parsePayload, parseTopicSearch } from '../src/weibo.ts';
 import { dayKey, topicsFromInput } from '../src/account.ts';
 
 const key = btoa('a'.repeat(32));
@@ -115,4 +115,13 @@ test('day boundary uses UTC+8 and topic configuration rejects duplicate IDs', ()
   assert.equal(topicsFromInput([topic])[0].name, '示例');
   assert.throws(() => topicsFromInput([topic, topic]));
   assert.throws(() => topicsFromInput([{ name: 'bad', id: '100808wrong' }]));
+});
+test('topic search uses named supertopic links, deduplicates and rejects foreign destinations', () => {
+  const id = '100808' + 'a'.repeat(32), other = '100808' + 'b'.repeat(32);
+  const html = `<a href="https://weibo.com/p/${other}"><span>单依纯音乐</span>超话</a>
+    <a href="//weibo.com/p/${id}?from=search"><b>单依纯</b>超话</a>
+    <a href="https://weibo.com/p/${id}" title="单依纯超话">duplicate</a>
+    <a href="https://evil.test/p/${id}">fake</a><a href="https://weibo.com/u/123">not a topic</a>`;
+  assert.deepEqual(parseTopicSearch(html, '单依纯'), [{ id, name: '单依纯' }, { id: other, name: '单依纯音乐' }]);
+  assert.deepEqual(parseTopicSearch('<html>empty</html>', '单依纯'), []);
 });

@@ -129,6 +129,15 @@ export class WeiboAccount {
       return this.start(state);
     }
     if (path === '/api/run') return this.start(state);
+    if (path === '/api/topics/search') {
+      this.idle(state);
+      const input = await request.json() as { query?: unknown };
+      if (typeof input.query !== 'string' || !input.query.trim() || input.query.length > 60) throw new HttpError(400, '请输入 1–60 字的超话名称');
+      if (state.login !== 'valid') throw new HttpError(409, '请先连接微博账号');
+      const client = await this.client(state);
+      try { return { topics: await client.searchTopics(input.query.trim()) }; }
+      finally { await this.remember(state, client); }
+    }
     if (path === '/api/stop') {
       if (state.job?.status === 'running') { state.job.status = 'stopped'; state.job.finishedAt = new Date().toISOString(); state.job.message = '手动停止'; }
       await this.ctx.storage.transaction(async txn => { await txn.put('state', state); await txn.deleteAlarm(); });

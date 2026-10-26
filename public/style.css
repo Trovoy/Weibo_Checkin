@@ -721,3 +721,32 @@ html {
     display: none;
   }
 }
+
+#topic-search-form {
+  margin-top: 20px;
+}
+.search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.search-result a {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.result-add {
+  padding: 6px 13px;
+  font-size: 11px;
+}
+.topic-link {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 7px 0 0 2px;
+}
+#topic-search-form .input-action {
+  flex-direction: row;
+}
