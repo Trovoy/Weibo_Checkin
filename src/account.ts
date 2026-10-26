@@ -8,6 +8,8 @@ export interface Env {
   ADMIN_TOKEN: string;
   ENCRYPTION_KEY: string;
   NOTIFY_WEBHOOK_URL?: string;
+  NODESEEK_SERVICE?: Fetcher;
+  NODESEEK_ADMIN_TOKEN?: string;
 }
 export interface Topic { id: string; name: string }
 interface Entry { at: string; day: string; topic: Topic; result: 'success' | 'already' | 'failed'; message: string }

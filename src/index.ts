@@ -1,5 +1,6 @@
 import { type Env, WeiboAccount } from './account.ts';
 import { sameSecret, session, validSession, unbase64 } from './crypto.ts';
+import { platformRoute } from './platforms.ts';
 export { WeiboAccount };
 
 function secure(response: Response) {
@@ -58,6 +59,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (!value || !await validSession(value, env.ADMIN_TOKEN)) return json({ error: '请使用管理密钥解锁控制台' }, 401);
   if (url.pathname === '/api/session/logout' && request.method === 'POST') return new Response('{}', { headers: { 'Content-Type': 'application/json',
     'Set-Cookie': `wc_session=; HttpOnly; SameSite=Strict; Path=/api/; Max-Age=0${secureFlag}` } });
+  if (url.pathname === '/api/platforms' || url.pathname.startsWith('/api/platforms/')) return platformRoute(request, env);
   const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
   return stub.fetch(request);
 }

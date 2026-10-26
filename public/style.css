@@ -149,6 +149,24 @@ footer { display: flex; justify-content: space-between; margin-top: auto; paddin
 #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: min(90vw, 540px); padding: 12px 18px; background: #24272e; color: #fff; border-radius: 7px; box-shadow: 0 4px 18px #15171a18; font-size: 13px; z-index: 10; }
 #toast.error { background: #9e3027; }
 html { scroll-padding-top: 20px; }
+.platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; margin: 0 0 26px; }
+.platform-card { padding: 20px; }
+.platform-card h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.platform-status { font-size: 22px; font-weight: 600; margin: 16px 0 5px; }
+.platform-card .inline-link { display: inline-block; margin-top: 12px; }
+.ns-stats { margin: 22px 0; }
+.ns-stats strong { display: block; font-size: 23px; margin-top: 8px; font-weight: 600; }
+.ns-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#ns-settings, #nodeseek > .history-card { margin-top: 18px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 480px; }
+#ns-config-form { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 20px; }
+select { min-height: 36px; border: 1px solid #dce0e6; border-radius: 6px; padding: 8px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
+#ns-config-form details { margin: 18px 0; }
+#ns-config-form details input { margin-bottom: 10px; }
+#ns-schedule-form > button, #ns-config-form > button { margin-top: 10px; }
+.history-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 14px 0; }
+.history-filters label { margin: 0; display: flex; align-items: center; gap: 8px; }
+.history-filters input { width: auto; }
 @media (min-width: 1500px) { main { padding-right: 36px; padding-left: 36px; } }
 @media (max-width: 1150px) { .shell { grid-template-columns: 180px minmax(0, 1fr); } main { padding: 0 20px 24px; } .stats { gap: 10px; } .stat { padding: 16px; } }
 @media (max-width: 680px) {
@@ -156,7 +174,8 @@ html { scroll-padding-top: 20px; }
   aside { position: static; height: auto; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { width: fit-content; padding: 5px 8px; } .brand small { display: none; }
   .aside-label, .aside-foot { display: none; }
-  nav { display: flex; justify-content: space-between; gap: 4px; margin-top: 12px; }
+  nav { display: flex; justify-content: space-between; gap: 4px; margin-top: 12px; overflow-x: auto; }
+  nav a { white-space: nowrap; flex-shrink: 0; }
   nav a { font-size: 12px; padding: 8px 7px; gap: 5px; } nav .icon { width: 15px; height: 15px; }
   main { padding: 0 16px 20px; } header { height: 52px; } header > span { font-size: 12px; } .header-divider { margin: 0 8px; }
   .intro { padding: 20px 0 16px; } h1 { font-size: 22px; } .date { display: none; }
