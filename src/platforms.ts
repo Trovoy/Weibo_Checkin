@@ -32,17 +32,17 @@ function schedule(data: Data = {}) {
 }
 function config(data: Data) {
   const health = data.cookieHealth || {};
-  return { configured: data.configured === true, random: data.random === true, browserPaired: data.browserPaired === true,
+  return { configured: data.configured === true, enabled: data.enabled === true, random: data.random === true, browserPaired: data.browserPaired === true, browserProtocol: data.browserProtocol === 5 ? 5 : 4,
     syncedAt: stamp(data.syncedAt), updatedAt: stamp(data.updatedAt),
     cookieHealth: { status: ['valid', 'invalid', 'unknown', 'unchecked', 'stale', 'missing'].includes(health.status) ? health.status : 'unknown',
       checkedAt: stamp(health.checkedAt), code: Object.hasOwn(messages, health.code) ? health.code : null }, schedule: schedule(data.schedule) };
 }
-function available(env: Env) { return !!env.NODESEEK_SERVICE && typeof env.NODESEEK_ADMIN_TOKEN === 'string' && env.NODESEEK_ADMIN_TOKEN.length >= 32; }
+function available(env: Env) { return !!env.NODESEEK && typeof env.NODESEEK_CREDENTIAL_KEY === 'string' && env.NODESEEK_CREDENTIAL_KEY.length >= 32; }
 async function call(env: Env, path: string, body?: Data) {
   // Only the adapter's fixed API paths are used. Never forward browser headers or accept a URL from the client.
-  const response = await env.NODESEEK_SERVICE!.fetch('https://platform.internal' + path, {
+  const response = await env.NODESEEK!.get(env.NODESEEK!.idFromName('personal-nodeseek')).fetch('https://platform.internal' + path, {
     method: body ? 'POST' : 'GET', redirect: 'manual', signal: AbortSignal.timeout(body ? 90000 : 15000),
-    headers: { Authorization: 'Bearer ' + env.NODESEEK_ADMIN_TOKEN, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined
   });
   if ([301, 302, 303, 307, 308, 401, 403].includes(response.status)) { await response.body?.cancel(); throw new Error('connection'); }
@@ -56,8 +56,14 @@ async function call(env: Env, path: string, body?: Data) {
 }
 function validMonth(month: string) { return /^20\d{2}-(0[1-9]|1[0-2])$/.test(month); }
 async function nodeSeek(request: Request, action: string, env: Env) {
-  if (!available(env)) return json({ error: 'NodeSeek 尚未连接，请配置服务绑定和专用管理密钥' }, 409);
+  if (!available(env)) return json({ error: '请先配置 NodeSeek 原生存储与加密密钥' }, 409);
   const method = request.method, url = new URL(request.url);
+  if (['pairapprove', 'pairrevoke'].includes(action) && method === 'POST') {
+    const body = await request.json() as Data;
+    if (action === 'pairapprove' && (!/^[A-Za-z0-9_-]{43}$/.test(body.flow || '') || !/^[A-Za-z0-9_-]{43}$/.test(body.challenge || ''))) return json({ error: '无效的扩展配对请求' }, 400);
+    const result = await call(env, action === 'pairapprove' ? '/pair/approve' : '/pair/revoke', action === 'pairapprove' ? { flow: body.flow, challenge: body.challenge } : {});
+    return json(result.status === 200 ? { ok: true, expiresAt: stamp(result.data.expiresAt) } : { error: '配对操作失败，请重新发起连接' }, result.status);
+  }
   if (action === 'status' && method === 'GET') {
     const [status, settings] = await Promise.all([call(env, '/status'), call(env, '/config')]);
     if (status.status !== 200 || settings.status !== 200 || !date(status.data.date)) throw new Error('response');
@@ -73,9 +79,9 @@ async function nodeSeek(request: Request, action: string, env: Env) {
   if (method !== 'POST' || !['run', 'health', 'config', 'schedule', 'reconcile'].includes(action)) return json({ error: '不支持的平台操作' }, 404);
   const input = await request.json() as Data; let body: Data = {};
   if (action === 'config') {
-    if (typeof input.random !== 'boolean' || (input.cookie !== undefined && (typeof input.cookie !== 'string' || input.cookie.length > 10000 || /[\r\n]/.test(input.cookie))) ||
+    if (typeof input.random !== 'boolean' || (input.enabled !== undefined && typeof input.enabled !== 'boolean') || (input.cookie !== undefined && (typeof input.cookie !== 'string' || input.cookie.length > 10000 || /[\r\n]/.test(input.cookie))) ||
       (input.userAgent !== undefined && (typeof input.userAgent !== 'string' || input.userAgent.length > 1024 || /[\r\n]/.test(input.userAgent)))) return json({ error: 'NodeSeek 配置格式不正确' }, 400);
-    body = { random: input.random, ...(input.cookie ? { cookie: input.cookie } : {}), ...(input.userAgent?.trim() ? { userAgent: input.userAgent.trim() } : {}) };
+    body = { random: input.random, ...(input.enabled !== undefined ? { enabled: input.enabled } : {}), ...(input.cookie ? { cookie: input.cookie } : {}), ...(input.userAgent?.trim() ? { userAgent: input.userAgent.trim() } : {}) };
   }
   if (action === 'schedule') {
     const minute = (x: unknown) => typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x) ? Number(x.slice(0, 2)) * 60 + Number(x.slice(3)) : NaN;
@@ -113,5 +119,15 @@ export async function platformRoute(request: Request, env: Env) {
   const adapter = match && platforms.find(p => p.id === match[1]);
   if (!adapter) return json({ error: '平台或操作不存在' }, 404);
   try { return await adapter.handle(request, match![2], env); }
-  catch { return json({ error: '平台服务连接失败，请检查服务绑定与专用密钥；签到结果未知时请先刷新记录' }, 502); }
+  catch { return json({ error: '平台暂不可用，请检查存储和加密密钥；签到结果未知时请先刷新记录' }, 502); }
+}
+
+export async function extensionRoute(request: Request, env: Env) {
+  if (!available(env)) return json({ error: 'NodeSeek 尚未配置' }, 503);
+  const action = new URL(request.url).pathname.split('/').at(-1);
+  if (request.method !== 'POST' || !['sync', 'pairpoll'].includes(action!)) return json({ error: '不支持的同步操作' }, 404);
+  const stub = env.NODESEEK!.get(env.NODESEEK!.idFromName('personal-nodeseek'));
+  return stub.fetch(new Request('https://platform.internal/' + (action === 'pairpoll' ? 'pair/poll' : 'sync'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: request.headers.get('Authorization') || '' }, body: await request.text()
+  }));
 }

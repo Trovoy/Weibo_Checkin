@@ -41,15 +41,17 @@ function renderNodeSeek() {
   syncPlatformControls();
   if (config) {
     const plan = config.schedule;
-    $('ns-next').textContent = plan.nextAt ? `下次计划 ${time(plan.nextAt)}，每天随机选择执行时间。` : '暂无下次执行时间，请检查服务的调度配置。';
-    $('ns-sync').textContent = config.browserPaired ? `浏览器扩展已配对${config.syncedAt ? '，最近同步 ' + time(config.syncedAt) : ''}，可继续沿用。仅在需要时手动更新。` : '可手动保存 Cookie；需要扩展自动同步时，请在原 NodeSeek 服务完成一次配对。';
-    if (!nsFormsReady) { $('ns-start').value = plan.start || ''; $('ns-end').value = plan.end || ''; $('ns-random').value = String(config.random); nsFormsReady = true; }
+    $('ns-next').textContent = !config.enabled ? '自动签到已关闭。开启并保存后，将按所选时段执行。' : plan.nextAt ? `下次计划 ${time(plan.nextAt)}，每天随机选择执行时间。` : '暂无下次执行时间，请检查服务的调度配置。';
+    const syncText = config.browserPaired ? config.browserProtocol === 5 ? `浏览器已连接${config.syncedAt ? '，最近同步 ' + time(config.syncedAt) : ''}。Cookie 变化时将自动同步。` : '旧版扩展配对已迁入。请更新扩展并连接新面板，云端已保存的 Cookie 可继续使用。' : '尚未配对；在“扩展同步”页面连接浏览器，也可手动更新 Cookie。';
+    $('ns-sync').textContent = syncText; $('ns-pair-copy').textContent = syncText;
+    $('ns-pair-state').textContent = config.browserPaired ? config.browserProtocol === 5 ? '已连接' : '需更新扩展' : '尚未配对';
+    if (!nsFormsReady) { $('ns-start').value = plan.start || ''; $('ns-end').value = plan.end || ''; $('ns-random').value = String(config.random); $('ns-enabled').checked = config.enabled; nsFormsReady = true; }
   }
   renderNSRecords();
 }
 function syncPlatformControls() {
   const ready = nsAvailable() && !!nsSnapshot && !nsError;
-  for (const id of ['ns-run', 'ns-check', 'ns-schedule-save', 'ns-config-save', 'ns-reconcile']) $(id).disabled = !ready || busy.has(id) || (id === 'ns-run' && (nsSnapshot?.record?.ok || !nsSnapshot?.config.configured));
+  for (const id of ['ns-run', 'ns-check', 'ns-schedule-save', 'ns-config-save', 'ns-reconcile', 'ns-pair-approve', 'ns-pair-revoke']) $(id).disabled = !ready || busy.has(id) || (id === 'ns-run' && (nsSnapshot?.record?.ok || !nsSnapshot?.config.configured));
 }
 function renderNSRecords() {
   const loaded = nsLoadedMonth === chosenMonth(), records = loaded ? nsRecords : [];
@@ -132,7 +134,7 @@ $('ns-schedule-form').addEventListener('submit', event => {
 });
 $('ns-config-form').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
-    const body = { random: $('ns-random').value === 'true' };
+    const body = { random: $('ns-random').value === 'true', enabled: $('ns-enabled').checked };
     if ($('ns-cookie').value.trim()) body.cookie = $('ns-cookie').value.trim();
     if ($('ns-ua').value.trim()) body.userAgent = $('ns-ua').value.trim();
     $('ns-cookie').value = ''; $('ns-ua').value = '';
@@ -140,3 +142,19 @@ $('ns-config-form').addEventListener('submit', event => {
   });
 });
 $('refresh').addEventListener('click', () => refreshPlatforms(true).catch(() => {}));
+let pendingExtensionPair;
+const pairQuery = new URLSearchParams(location.search).get('pair');
+if (pairQuery && /^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/.test(pairQuery)) {
+  const [flow, challenge] = pairQuery.split('.'); pendingExtensionPair = { flow, challenge };
+  history.replaceState(null, '', '/#/nodeseek-sync'); $('ns-pair-request').hidden = false; showPage();
+}
+$('ns-pair-cancel').addEventListener('click', () => { pendingExtensionPair = undefined; $('ns-pair-request').hidden = true; });
+$('ns-pair-approve').addEventListener('click', () => action($('ns-pair-approve'), async () => {
+  if (!pendingExtensionPair) return;
+  await api('platforms/nodeseek/pairapprove', pendingExtensionPair);
+  $('ns-pair-feedback').textContent = '已确认连接，返回扩展查看配对和同步结果。';
+  pendingExtensionPair = undefined; $('ns-pair-request').hidden = true; await refreshPlatforms();
+}));
+$('ns-pair-revoke').addEventListener('click', () => action($('ns-pair-revoke'), async () => {
+  await api('platforms/nodeseek/pairrevoke', {}); toast('扩展已断开，已保存的登录凭证仍保留。'); await refreshPlatforms();
+}));

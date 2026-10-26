@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "每日 · NodeSeek 同步助手",
+  "version": "5.0.0",
+  "description": "将 NodeSeek 登录状态同步到你自己的每日签到工作台。",
+  "permissions": ["cookies", "storage", "alarms"],
+  "host_permissions": ["https://nodeseek.com/*", "https://www.nodeseek.com/*", "http://nodeseek.com/*", "http://www.nodeseek.com/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "每日 · 同步 NodeSeek" },
+  "content_scripts": [{ "matches": ["https://nodeseek.com/*", "https://www.nodeseek.com/*"], "js": ["visited.js"] }]
+}

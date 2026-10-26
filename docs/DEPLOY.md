@@ -1,6 +1,6 @@
 # 自行部署到 Cloudflare
 
-本教程为你自己的个人签到工作台服务。仓库只提供代码，不提供公共面板或共享登录服务。微博凭证保存在你自己的 Cloudflare 账号中；已有 NodeSeek 服务可按 [平台连接教程](PLATFORMS.md) 接入，首次部署不必配置。
+本教程为你自己的个人签到工作台服务。仓库只提供代码，不提供公共面板或共享登录服务。微博与 NodeSeek 都在同一 Worker 中运行，各自使用独立存储。NodeSeek 使用与旧实例迁移参见 [平台教程](PLATFORMS.md)。
 
 ## 准备
 
@@ -46,7 +46,8 @@ Wrangler 会打开浏览器完成 Cloudflare 授权。确认 `whoami` 显示的�
 | `workers_dev` | `true`，使用 Cloudflare 提供的访问地址。 |
 | `preview_urls` | `false`，不提供版本预览入口。 |
 | `durable_objects` / `migrations` | 存储账号和签到状态，由 Wrangler 创建；保留原配置。 |
-| `triggers.crons` | `0 1 * * *`，UTC+8 每日 09:00 触发。 |
+| `triggers.crons` | `0 1 * * *` 只触发微博；`* * * * *` 只检查 NodeSeek 到期计划。 |
+| `browser` | NodeSeek 使用 Cloudflare Browser Run；需账号可用并遵守其当前配额和计费。 |
 
 无需手工创建数据库、KV、R2 或绑定。无需 GitHub Actions 部署 Token；仓库中的 Actions 只检查代码，不会部署到 Cloudflare。
 
@@ -64,6 +65,7 @@ node scripts/secrets.mjs --upload
 
 - `ADMIN_TOKEN`：面板登录密码，复制等号后面的值解锁控制台。不是微博密码。
 - `ENCRYPTION_KEY`：服务端用来加密微博 Cookie 的密钥。不要填到面板登录框。
+- `NODESEEK_CREDENTIAL_KEY`：NodeSeek Cookie 加密及随机计划使用的独立密钥。迁移旧实例时先填写旧 `CREDENTIAL_KEY`；新实例由脚本生成。
 
 请把 `.dev.vars` 备份到自己的密码管理器或其他安全位置；不要提交 Git、上传 Issue 或发给别人。`.dev.vars.example` 只有格式示例，其中的文字不能直接用作密钥。
 
@@ -140,7 +142,7 @@ npm run deploy
 
 使用自定义域名配置时，最后一步改为 `npm run deploy:local`。先对照新版公开配置，把必要的新字段更新到本地配置；私有域名继续保存在本地文件。若 `git pull` 提示有本地改动，先备份并查看差异，不要直接覆盖。
 
-同名 Worker 的正常更新会保留 Durable Object 数据和已上传的 Secrets。升级时不要删除 Worker、修改绑定身份或重新生成加密密钥。更换 Worker / Cloudflare 账号属于迁移，不能假定旧数据会自动跟随。
+同名 Worker 的正常更新会保留 Durable Object 数据和已上传的 Secrets。升级时不要删除 Worker、修改绑定身份或重新生成加密密钥。保留已存在的迁移，并按新配置增加 `NodeSeekAccount` 的 `v2` 迁移、`NODESEEK`、`BROWSER` 绑定和分钟 Cron；不要覆盖自己的域名。更换 Worker / Cloudflare 账号属于迁移，不能假定旧数据会自动跟随。
 
 需要保留的内容：
 

@@ -8,8 +8,8 @@ async function setup(transport?: (url: string, init: RequestInit) => Promise<Res
   const calls: { url: string; init: RequestInit }[] = [];
   const env = { ADMIN_TOKEN: 'panel-' + 'b'.repeat(40), ENCRYPTION_KEY: btoa('k'.repeat(32)),
     ACCOUNT: { idFromName: () => 'one', get: () => ({ fetch: async () => Response.json({ login: 'valid', topics: [] }) }) },
-    ASSETS: { fetch: async () => new Response('shell') }, NODESEEK_ADMIN_TOKEN: privateToken,
-    NODESEEK_SERVICE: { fetch: async (url: string, init: RequestInit) => { calls.push({ url: String(url), init }); return transport ? transport(String(url), init) : Response.json({}); } } };
+    ASSETS: { fetch: async () => new Response('shell') }, NODESEEK_CREDENTIAL_KEY: privateToken,
+    NODESEEK: { idFromName: () => 'one', get: () => ({ fetch: async (url: string, init: RequestInit) => { calls.push({ url: String(url), init }); return transport ? transport(String(url), init) : Response.json({}); } }) } };
   const cookie = 'wc_session=' + await session(env.ADMIN_TOKEN), base = 'https://panel.example.com';
   const call = (path: string, body?: unknown, headers: Record<string, string> = {}) => worker.fetch(new Request(base + '/api/' + path, {
     method: body === undefined ? 'GET' : 'POST', headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json', ...headers }, body: body === undefined ? undefined : JSON.stringify(body)
@@ -44,7 +44,7 @@ test('NodeSeek snapshot and history use fixed internal targets and an output all
   assert.deepEqual(history.records.map(r => r.gain), [0, null]);
   for (const request of calls) {
     assert.equal(new URL(request.url).origin, 'https://platform.internal'); assert.equal(request.init.redirect, 'manual');
-    const headers = new Headers(request.init.headers); assert.equal(headers.get('Authorization'), 'Bearer ' + privateToken);
+    const headers = new Headers(request.init.headers); assert.equal(headers.get('Authorization'), null);
     assert.equal(headers.get('Cookie'), null); assert.equal(headers.get('Cf-Access-Jwt-Assertion'), null); assert.equal(headers.get('Origin'), null);
   }
 });
@@ -62,7 +62,7 @@ test('connector rejects unregistered operations and invalid inputs before contac
 test('connector forwards only permitted settings and makes a single call for a manual run', async () => {
   const { call, calls } = await setup(async () => Response.json(entry));
   assert.equal((await call('platforms/nodeseek/config', { random: false, cookie: 'session=fake', userAgent: 'test', url: 'https://evil.example', enabled: true })).status, 200);
-  assert.deepEqual(JSON.parse(calls[0].init.body as string), { random: false, cookie: 'session=fake', userAgent: 'test' });
+  assert.deepEqual(JSON.parse(calls[0].init.body as string), { random: false, enabled: true, cookie: 'session=fake', userAgent: 'test' });
   await call('platforms/nodeseek/schedule', { start: '10:00', end: '12:00', triggerNow: true });
   assert.deepEqual(JSON.parse(calls[1].init.body as string), { start: '10:00', end: '12:00' });
   const result = await (await call('platforms/nodeseek/run', { target: 'https://evil.example', random: false })).json();
@@ -74,7 +74,7 @@ test('unavailable or failing NodeSeek does not block Weibo and uncertain operati
   const { env, call, calls } = await setup(async () => { throw new Error('private-details-' + privateToken); });
   assert.equal((await call('status')).status, 200);
   const result = await call('platforms/nodeseek/run', {}); assert.equal(result.status, 502); assert.ok(!(await result.text()).includes(privateToken)); assert.equal(calls.length, 1);
-  env.NODESEEK_ADMIN_TOKEN = '';
+  env.NODESEEK_CREDENTIAL_KEY = '';
   assert.equal((await call('platforms/nodeseek/status')).status, 409);
   const list = await (await call('platforms')).json(); assert.equal(list.platforms.find(p => p.id === 'nodeseek').available, false);
   assert.equal((await call('status')).status, 200);

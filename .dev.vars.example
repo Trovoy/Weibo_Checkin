@@ -3,5 +3,5 @@ ADMIN_TOKEN=replace-with-a-long-random-token
 ENCRYPTION_KEY=replace-with-base64-encoded-32-random-bytes
 # 可选：只发送失败摘要，不含 Cookie。接收 JSON { title, content }。
 # NOTIFY_WEBHOOK_URL=https://your-webhook.example/endpoint
-# 可选：接入自己的 NodeSeek Worker；填写该服务已有的管理员密钥，不是浏览器扩展同步令牌。
-# NODESEEK_ADMIN_TOKEN=your-existing-nodeseek-worker-admin-token
+# NodeSeek 原生引擎的独立加密密钥。新实例由脚本生成；迁移旧实例须保留原 CREDENTIAL_KEY。
+NODESEEK_CREDENTIAL_KEY=replace-with-another-long-random-key

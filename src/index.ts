@@ -1,7 +1,8 @@
 import { type Env, WeiboAccount } from './account.ts';
 import { sameSecret, session, validSession, unbase64 } from './crypto.ts';
-import { platformRoute } from './platforms.ts';
+import { platformRoute, extensionRoute } from './platforms.ts';
 export { WeiboAccount };
+export { NodeSeekAccount } from './nodeseek/account.ts';
 
 function secure(response: Response) {
   const result = new Response(response.body, response);
@@ -26,7 +27,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (!['GET', 'POST'].includes(request.method)) return json({ error: '不支持的请求方法' }, 405);
   // All browser writes, including login, require a same-origin JSON request.
   if (request.method === 'POST') {
-    if (request.headers.get('Origin') !== url.origin || !request.headers.get('Content-Type')?.startsWith('application/json')) {
+    const extension = ['/api/platforms/nodeseek/sync', '/api/platforms/nodeseek/pairpoll'].includes(url.pathname);
+    if ((!extension && request.headers.get('Origin') !== url.origin) || !request.headers.get('Content-Type')?.startsWith('application/json')) {
       return json({ error: '请求来源不正确' }, 403);
     }
     if (Number(request.headers.get('Content-Length')) > 32768) return json({ error: '请求过大' }, 413);
@@ -48,6 +50,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
     } catch { return json({ error: '请求必须为 JSON 对象' }, 400); }
     request = new Request(request.url, { method: 'POST', headers: request.headers, body });
   }
+  if (['/api/platforms/nodeseek/sync', '/api/platforms/nodeseek/pairpoll'].includes(url.pathname)) return extensionRoute(request, env);
   const secureFlag = url.protocol === 'https:' ? '; Secure' : '';
   if (url.pathname === '/api/session' && request.method === 'POST') {
     const input = await request.json() as { token?: unknown };
@@ -75,10 +78,13 @@ export default {
   },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (!configured(env)) return;
-    const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
-    ctx.waitUntil((async () => {
-      const response = await stub.fetch('https://account/internal/cron', { method: 'POST' });
-      if (!response.ok) throw new Error('Scheduled check-in could not start');
-    })());
+    if (_event.cron === '0 1 * * *') {
+      const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
+      ctx.waitUntil((async () => { const response = await stub.fetch('https://account/internal/cron', { method: 'POST' }); if (!response.ok) throw new Error('Scheduled check-in could not start'); })());
+    }
+    if (_event.cron === '* * * * *' && env.NODESEEK && (env.NODESEEK_CREDENTIAL_KEY?.length ?? 0) >= 32) {
+      const stub = env.NODESEEK.get(env.NODESEEK.idFromName('personal-nodeseek'));
+      ctx.waitUntil((async () => { const response = await stub.fetch('https://nodeseek/tick', { method: 'POST' }); if (!response.ok) throw new Error('NodeSeek scheduled check-in failed'); })());
+    }
   }
 } satisfies ExportedHandler<Env>;
