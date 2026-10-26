@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light"><meta name="description" content="个人微博超话签到控制台">
+  <title>每日 · 微博超话签到</title><link rel="stylesheet" href="/style.css">
+  <script src="/vendor/gsap.min.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true"><defs>
+    <symbol id="icon-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 16v-4m4 4V8m4 8v-6"/></symbol>
+    <symbol id="icon-account" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></symbol>
+    <symbol id="icon-topics" viewBox="0 0 24 24"><path d="m9 3-2 18M17 3l-2 18M4 9h17M3 15h17"/></symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7 12 3 3 7-7"/></symbol>
+  </defs></svg>
+  <div class="shell">
+    <aside>
+      <a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>WEIBO CHECK-IN</small></span></a>
+      <p class="aside-label">工作空间</p>
+      <nav aria-label="功能页面"><a href="#/overview" class="active"><svg class="icon"><use href="#icon-overview"/></svg>签到概览</a><a href="#/topics"><svg class="icon"><use href="#icon-topics"/></svg>我的超话</a><a href="#/account"><svg class="icon"><use href="#icon-account"/></svg>微博账号</a><a href="#/history"><svg class="icon"><use href="#icon-history"/></svg>签到记录</a></nav>
+      <div class="aside-foot"><span class="dot"></span> 个人工作台<small>单账号 · 私人空间</small><button id="lock" class="text-button" hidden>锁定控制台 ↗</button></div>
+    </aside>
+    <main>
+      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><a href="https://weibo.com" target="_blank" rel="noreferrer">打开微博 ↗</a></header>
+      <section id="unlock" class="unlock card" hidden>
+        <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
+        <p class="muted">使用你的管理密钥进入个人控制台。</p>
+        <form id="unlock-form"><label for="token">管理密钥</label><div class="input-action"><input id="token" type="password" autocomplete="current-password" required placeholder="输入部署时设置的管理密钥"><button class="primary">进入控制台 →</button></div></form>
+        <p class="fine">微博登录信息仅在解锁后的控制台管理。</p>
+      </section>
+      <div id="dashboard" hidden>
+        <section class="intro"><div><h1 id="page-heading" tabindex="-1">签到概览</h1><p class="muted" id="overview-copy">管理账号、超话和每日签到。</p></div><span class="date" id="date"></span></section>
+        <div id="notice" class="notice" hidden></div>
+        <div class="page" id="overview" data-page="overview">
+        <section class="stats" aria-label="签到概览">
+          <div class="card stat"><span>今日已完成</span><strong><span id="completed-count">0</span><small> / <span id="topic-count">0</span></small></strong><p>已签到 / 已配置超话</p></div>
+          <div class="card stat"><span>微博登录状态</span><strong class="status-label" id="login-stat">未连接</strong><p id="last-check">等待首次登录</p></div>
+          <div class="card stat"><span>自动签到</span><strong class="status-label" id="schedule-stat">已关闭</strong><p>每日 09:00 · UTC+8</p></div>
+        </section>
+        <section class="card run-card"><div class="run-icon"><svg class="icon"><use href="#icon-check"/></svg></div><div class="run-copy"><h2 id="run-title">准备开始签到</h2><p class="muted" id="run-detail">配置超话后，可以先手动签到一次。</p></div><button id="stop" hidden>停止任务</button><button class="primary" id="run">立即签到 <span>↗</span></button></section>
+          <div class="overview-grid"><section class="card summary-card"><div class="section-heading"><h2>当前配置</h2><a href="#/topics" class="inline-link">管理超话 ↗</a></div><dl><div><dt>微博账号</dt><dd id="summary-account">未连接</dd></div><div><dt>签到超话</dt><dd id="summary-topics">0 个</dd></div><div><dt>执行时间</dt><dd>每日 09:00 · UTC+8</dd></div></dl><a href="#/account" class="inline-link">管理登录状态 ↗</a></section><section class="card summary-card"><div class="section-heading"><h2>最近一次签到</h2><a href="#/history" class="inline-link">全部记录 ↗</a></div><p id="summary-last-topic" class="summary-primary">暂无记录</p><p id="summary-last-result" class="muted">添加超话后即可开始签到。</p></section></div>
+        </div>
+            <section class="card page" id="account" data-page="account" hidden><div class="section-heading"><h2>当前登录账号</h2><span id="account-badge" class="badge">未连接</span></div><p id="account-copy" class="muted">扫码连接你的账号，登录失效后可在这里重新连接。</p>
+              <div id="account-profile" class="account-profile" hidden><span id="avatar-fallback" class="avatar-fallback">◎</span><img id="account-avatar" alt="微博头像" width="48" height="48" referrerpolicy="no-referrer" hidden><div class="account-identity"><a id="account-name" target="_blank" rel="noreferrer">微博账号</a><p id="account-uid" class="fine"></p></div><button id="show-login" type="button" class="text-button">重新登录</button></div>
+              <div id="login-panel" class="qr-area"><p id="login-purpose" class="fine">连接微博账号</p><div id="qr-placeholder" class="qr-placeholder"><span>◎</span><small>用微博 App 扫码</small></div><img id="qr-image" alt="微博登录二维码" width="180" height="180" hidden><p id="qr-status" class="fine">无需提供账号密码</p><button id="create-qr" class="primary">生成登录二维码</button><button id="hide-login" class="text-button" type="button" hidden>收起</button></div>
+            <div class="account-actions"><button id="validate">检测登录状态</button><button id="disconnect" class="text-button danger">断开微博账号</button></div>
+            <details><summary>使用 Cookie 备用登录 <span>＋</span></summary><form id="cookie-form"><label for="cookie">从已登录的 weibo.com 请求中复制完整 Cookie</label><textarea id="cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="SUB=…; SUBP=…; XSRF-TOKEN=…" required></textarea><p class="fine">请勿将 Cookie 发到聊天或提交到仓库。验证成功后会加密保存。</p><button type="submit">验证并保存 Cookie</button></form></details>
+          </section>
+            <section class="card page" id="topics" data-page="topics" hidden><div class="section-heading"><h2>签到列表</h2><span class="badge neutral">最多 30 个</span></div><p class="muted">读取已关注的超话，或搜索名字添加到签到列表。</p>
+              <button id="load-followed" type="button">读取我的关注与等级 ↻</button><p id="followed-feedback" class="fine" role="status"></p><button id="connect-levels" type="button" hidden>扫码连接个人等级</button><div id="followed-results" aria-label="我关注的超话"></div>
+            <form id="topic-search-form"><label for="topic-query">搜索超话</label><div class="input-action"><input id="topic-query" type="search" maxlength="60" required placeholder="输入超话名称"><button id="search-topic" type="submit">搜索</button></div></form><p id="search-feedback" class="fine" role="status"></p><div id="search-results"></div>
+            <form id="settings-form"><div id="topic-list"></div><div id="empty-topics" class="empty">还没有超话，添加第一个吧。</div><button type="button" id="add-topic" class="add-button">＋ 添加超话</button>
+              <div class="toggle-row"><div><strong>每日自动签到</strong><p class="fine">09:00 自动运行，已完成的超话会跳过</p></div><label class="switch"><input id="enabled" type="checkbox" aria-label="每日自动签到"><span><i id="switch-knob" aria-hidden="true"></i></span></label></div>
+              <button class="primary" type="submit">保存设置</button><p class="fine">搜索结果加入后，记得保存设置。</p>
+            </form>
+          </section>
+        <section class="card history-card page" id="history" data-page="history" hidden><div class="section-heading"><div><h2>最近记录</h2><p class="muted">最近的执行结果与状态。</p></div><button id="refresh" class="text-button">刷新 ↻</button></div><div class="table-wrap"><table><thead><tr><th>超话</th><th>时间 · UTC+8</th><th>结果</th><th>说明</th></tr></thead><tbody id="history-body"></tbody></table></div><div id="empty-history" class="empty">还没有签到记录。准备好后，点击「立即签到」。</div></section>
+        <footer>每日 · Weibo Check-in <span>所有时间均为 UTC+8</span></footer>
+      </div>
+      <div id="toast" role="status" aria-live="polite" hidden></div>
+    </main>
+  </div>
+</body>
+</html>

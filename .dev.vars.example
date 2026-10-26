@@ -1,0 +1,5 @@
+# 示例值不可直接使用。运行 node scripts/secrets.mjs 自动生成 .dev.vars。
+ADMIN_TOKEN=replace-with-a-long-random-token
+ENCRYPTION_KEY=replace-with-base64-encoded-32-random-bytes
+# 可选：只发送失败摘要，不含 Cookie。接收 JSON { title, content }。
+# NOTIFY_WEBHOOK_URL=https://your-webhook.example/endpoint
