@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light"><meta name="description" content="个人微博超话签到控制台">
+  <title>每日 · 微博超话签到</title><link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>WEIBO CHECK-IN</small></span></a>
+      <p class="aside-label">你的签到空间</p>
+      <nav><a href="#overview" class="active"><span>◉</span> 签到概览</a><a href="#account"><span>◎</span> 微博账号</a><a href="#topics"><span>▤</span> 我的超话</a><a href="#history"><span>↺</span> 最近记录</a></nav>
+      <div class="aside-foot"><span class="dot"></span> Cloudflare Workers<small>个人空间 · 单账号</small><button id="lock" class="text-button" hidden>锁定控制台 ↗</button></div>
+    </aside>
+    <main>
+      <header><span>每天一点，热爱不断。</span><a href="https://weibo.com" target="_blank" rel="noreferrer">打开微博 ↗</a></header>
+      <section id="unlock" class="unlock card">
+        <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
+        <p class="muted">使用你的管理密钥进入个人控制台。</p>
+        <form id="unlock-form"><label for="token">管理密钥</label><div class="input-action"><input id="token" type="password" autocomplete="current-password" required placeholder="输入部署时设置的管理密钥"><button class="primary">进入控制台 →</button></div></form>
+        <p class="fine">微博登录信息仅在解锁后的控制台管理。</p>
+      </section>
+      <div id="dashboard" hidden>
+        <section id="overview" class="intro"><div><p class="eyebrow">A LITTLE EVERY DAY</p><h1>热爱，记得每天来。</h1><p class="muted" id="overview-copy">连接账号，开始你的超话签到。</p></div><span class="date" id="date"></span></section>
+        <div id="notice" class="notice" hidden></div>
+        <section class="stats" aria-label="签到概览">
+          <div class="card stat"><span>今日已完成</span><strong><span id="completed-count">0</span><small> / <span id="topic-count">0</span></small></strong><p>每天从新的热爱开始</p></div>
+          <div class="card stat"><span>微博登录状态</span><strong class="status-label" id="login-stat">未连接</strong><p id="last-check">等待首次登录</p></div>
+          <div class="card stat"><span>自动签到</span><strong class="status-label" id="schedule-stat">已关闭</strong><p>每日 09:00 · UTC+8</p></div>
+        </section>
+        <section class="card run-card"><div><span class="sun">☀</span></div><div class="run-copy"><h2 id="run-title">让热爱成为日常</h2><p class="muted" id="run-detail">配置超话后，可以先手动签到一次。</p></div><button id="stop" hidden>停止任务</button><button class="primary" id="run">立即签到 <span>↗</span></button></section>
+        <div class="two-columns">
+          <section class="card" id="account"><div class="section-heading"><h2>微博账号</h2><span id="account-badge" class="badge">未连接</span></div><p class="muted">扫码连接你的账号，登录失效后可在这里重新连接。</p>
+            <div class="qr-area"><div id="qr-placeholder" class="qr-placeholder"><span>◎</span><small>用微博 App 扫码</small></div><img id="qr-image" alt="微博登录二维码" width="180" height="180" hidden><p id="qr-status" class="fine">无需提供账号密码</p><button id="create-qr" class="primary">生成登录二维码</button></div>
+            <div class="account-actions"><button id="validate">检测登录状态</button><button id="disconnect" class="text-button danger">断开微博账号</button></div>
+            <details><summary>使用 Cookie 备用登录 <span>＋</span></summary><form id="cookie-form"><label for="cookie">从已登录的 weibo.com 请求中复制完整 Cookie</label><textarea id="cookie" rows="3" autocomplete="off" spellcheck="false" placeholder="SUB=…; SUBP=…; XSRF-TOKEN=…" required></textarea><p class="fine">请勿将 Cookie 发到聊天或提交到仓库。验证成功后会加密保存。</p><button type="submit">验证并保存 Cookie</button></form></details>
+          </section>
+          <section class="card" id="topics"><div class="section-heading"><h2>我的超话</h2><span class="badge neutral">最多 30 个</span></div><p class="muted">添加你想坚持签到的超话。可粘贴超话链接或 ID。</p>
+            <form id="settings-form"><div id="topic-list"></div><div id="empty-topics" class="empty">还没有超话，添加第一个吧。</div><button type="button" id="add-topic" class="add-button">＋ 添加超话</button>
+              <div class="toggle-row"><div><strong>每日自动签到</strong><p class="fine">09:00 自动运行，已完成的超话会跳过</p></div><label class="switch"><input id="enabled" type="checkbox" aria-label="每日自动签到"><span></span></label></div>
+              <button class="primary" type="submit">保存设置</button><p class="fine">超话 ID 位于链接 /p/ 后，以 100808 开头。</p>
+            </form>
+          </section>
+        </div>
+        <section class="card history-card" id="history"><div class="section-heading"><div><h2>最近记录</h2><p class="muted">每一次签到，都有迹可循。</p></div><button id="refresh" class="text-button">刷新 ↻</button></div><div class="table-wrap"><table><thead><tr><th>超话</th><th>时间 · UTC+8</th><th>结果</th><th>说明</th></tr></thead><tbody id="history-body"></tbody></table></div><div id="empty-history" class="empty">还没有签到记录。准备好后，点击「立即签到」。</div></section>
+        <footer>每日 · Weibo Check-in <span>只为简单、持续的热爱。</span></footer>
+      </div>
+      <div id="toast" role="status" aria-live="polite" hidden></div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "weibo-checkin",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-26",
+  "workers_dev": true,
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
+  "durable_objects": { "bindings": [{ "name": "ACCOUNT", "class_name": "WeiboAccount" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeiboAccount"] }],
+  // Cron 使用 UTC：01:00 对应台北 / 上海 09:00。
+  "triggers": { "crons": ["0 1 * * *"] },
+  "observability": { "enabled": false }
+}
