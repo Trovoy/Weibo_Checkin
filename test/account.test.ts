@@ -197,3 +197,28 @@ test('worker authentication blocks anonymous, forged, cross-origin and internal 
   assert.match(logged.headers.get('Set-Cookie'), /Secure/);
   assert.match(logged.headers.get('Cache-Control'), /no-store/);
 });
+
+test('custom-domain privacy blocks anonymous and forged access, rejects sibling origins, and forces HTTPS', async () => {
+  let reads = 0;
+  const env = { ADMIN_TOKEN: 'x'.repeat(40), ENCRYPTION_KEY: key,
+    ACCOUNT: { idFromName: () => 'id', get: () => ({ fetch: async () => { reads++; return Response.json({ private: true }); } }) },
+    ASSETS: { fetch: async () => new Response('public shell') } };
+  const base = 'https://wb.trowoy.com';
+  for (const path of ['status', 'avatar', 'profile', 'topics/followed', 'topics/levels', 'qr/create', 'qr/poll', 'cookie', 'settings', 'run', 'logout']) {
+    const method = ['status', 'avatar'].includes(path) ? 'GET' : 'POST';
+    for (const cookie of ['', 'wc_session=forged']) {
+      const response = await worker.fetch(new Request(base + '/api/' + path, { method,
+        headers: { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined }), env, {});
+      assert.equal(response.status, 401, path); assert.ok(!(await response.text()).includes('private'));
+      assert.match(response.headers.get('X-Robots-Tag'), /noindex/);
+    }
+  }
+  const cookie = 'wc_session=' + await session(env.ADMIN_TOKEN);
+  const sibling = await worker.fetch(new Request(base + '/api/run', { method: 'POST', headers: {
+    Cookie: cookie, Origin: 'https://other.trowoy.com', 'Content-Type': 'application/json' }, body: '{}' }), env, {});
+  assert.equal(sibling.status, 403); assert.equal(reads, 0);
+  const redirect = await worker.fetch(new Request('http://wb.trowoy.com/api/status'), env, {});
+  assert.equal(redirect.status, 308); assert.equal(redirect.headers.get('Location'), base + '/api/status'); assert.equal(reads, 0);
+  const local = await worker.fetch(new Request('http://localhost:8787/'), env, {});
+  assert.equal(local.status, 200);
+});

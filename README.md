@@ -35,7 +35,7 @@ node scripts/secrets.mjs --upload
 
 默认 Worker 名为 `weibo-checkin`。若已有同名服务，请先修改 `wrangler.jsonc` 的 `name`，避免覆盖。无需 KV、D1 或 R2。
 
-打开 Wrangler 返回的 `https://weibo-checkin.<你的子域>.workers.dev`，用本地 `.dev.vars` 中的 `ADMIN_TOKEN` 解锁。
+本仓库使用自定义域名 `https://wb.trowoy.com`，配置在 `wrangler.jsonc` 的 `routes` 中；`workers.dev` 和版本预览入口已关闭。自行部署时，先把 `routes` 改成你在 Cloudflare 托管的域名；也可删除 `routes` 并设置 `workers_dev: true`，使用 Wrangler 返回的地址。用本地 `.dev.vars` 中的 `ADMIN_TOKEN` 解锁。
 
 1. 生成二维码，用微博 App 扫码并确认。微博拒绝请求时，可使用 Cookie 备用入口。
 2. 点击「读取我的关注与等级」，或输入名称搜索，选择结果加入列表。也可通过 `https://weibo.com/p/100808...` 链接或 ID 添加；ID 为 `100808` 后接 32 位十六进制字符。
@@ -55,6 +55,12 @@ Cron 为 `0 1 * * *`（UTC），即 UTC+8 的 09:00。修改 `wrangler.jsonc` �
 浏览器登录 `https://weibo.com`，开发者工具 → Network → 发往 `weibo.com` 的请求 → 复制 Request Headers 中完整的 `Cookie` 值，到控制台备用入口粘贴。必须包含 `SUB`，建议保留 `SUBP`、`XSRF-TOKEN` 等。不要复制 `Set-Cookie`，不要把 Cookie 发到 Issue、聊天或 Git。
 
 新 Cookie 会先经过登录检测，成功后才替换现有会话。控制台不回显 Cookie；传输到服务端和导入时仍为敏感登录凭证，请保护管理密钥和 Cloudflare 账号。
+
+### 面板隐私
+
+域名是公开地址，不是访问凭证。未登录可访问静态登录界面，但账号资料、头像、关注及等级、签到记录与操作接口都要求有效管理会话。会话 Cookie 仅限当前主机，使用 Secure、HttpOnly、SameSite=Strict，12 小时后过期；写请求还校验完整 Origin，其他同站子域不能代为提交操作。
+
+线上强制 HTTPS，响应禁止缓存、嵌入和搜索引擎收录；不加载外部统计、字体或脚本。禁止收录只是给搜索引擎的声明，不能替代鉴权。微博 Cookie 与扫码临时状态加密保存，账号资料及签到配置仍由 Cloudflare 托管；能够控制 Worker 代码及密钥的 Cloudflare 账户管理员具备读取能力，因此不属于端到端加密。若需在登录页前再限制访问，可额外配置 Cloudflare Access。
 
 ### 密钥与通知
 

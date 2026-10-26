@@ -8,6 +8,9 @@ function secure(response: Response) {
   result.headers.set('X-Content-Type-Options', 'nosniff');
   result.headers.set('Referrer-Policy', 'no-referrer');
   result.headers.set('X-Frame-Options', 'DENY');
+  result.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  result.headers.set('Strict-Transport-Security', 'max-age=15552000');
+  result.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   result.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://*.sina.com.cn https://*.weibo.com https://*.sinaimg.cn https://v2.qr.weibo.cn; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   return result;
 }
@@ -60,6 +63,11 @@ async function handle(request: Request, env: Env): Promise<Response> {
 }
 export default {
   async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+    if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+      url.protocol = 'https:';
+      return secure(Response.redirect(url.href, 308));
+    }
     try { return secure(await handle(request, env)); }
     catch { return secure(json({ error: '服务暂不可用，请检查 Worker 配置' }, 500)); }
   },
