@@ -31,6 +31,15 @@ export class HttpError extends Error {
 export function dayKey(now = new Date()) {
   return new Date(now.getTime() + 8 * 3600000).toISOString().slice(0, 10);
 }
+export function recentCompletions(completed: Record<string, string[]>, today = dayKey(), history: Entry[] = []) {
+  const end = Date.parse(today + 'T00:00:00+08:00');
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = dayKey(new Date(end - (6 - index) * 86400000));
+    const ids = new Set(completed[date] ?? []);
+    for (const entry of history) if (entry.day === date && ['success', 'already'].includes(entry.result)) ids.add(entry.topic.id);
+    return { date, count: ids.size };
+  });
+}
 export function topicsFromInput(input: unknown): Topic[] {
   if (!Array.isArray(input) || input.length > 30) throw new HttpError(400, '最多配置 30 个超话');
   const ids = new Set<string>();
@@ -91,9 +100,11 @@ export class WeiboAccount {
     return problem;
   }
   private view(state: State) {
+    const today = dayKey();
     return { enabled: state.enabled, topics: state.topics, login: state.login, lastChecked: state.lastChecked,
-      message: state.message, job: state.job, history: state.history, today: dayKey(),
-      completedToday: state.completed[dayKey()] ?? [], hasCredentials: !!state.credentials, profile: state.profile };
+      message: state.message, job: state.job, history: state.history, today,
+      recentCompletions: recentCompletions(state.completed, today, state.history),
+      completedToday: state.completed[today] ?? [], hasCredentials: !!state.credentials, profile: state.profile };
   }
   private async start(state: State) {
     if (state.job?.status === 'running') return { started: false, message: '已有正在执行的任务' };
