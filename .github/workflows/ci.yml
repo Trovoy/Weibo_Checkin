@@ -15,5 +15,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run check:public
       - run: npm test
       - run: npm run build

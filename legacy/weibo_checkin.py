@@ -53,9 +53,7 @@ def check_in(cookies, active_id):
 if __name__ == "__main__":
     print("Running Weibo check-in script...")
     super_topic_active_ids = [
-        "1008080d055beb31fd94ce0399a1981d82afc5",
-        "1008084b3f3945e087a0dd32f56c3603b7d153",
-        # 添加更多超话 active_id
+        # 历史脚本仅供参考。自行填写超话 ID，不包含真实账号的配置。
     ]
 
     random.shuffle(super_topic_active_ids)  # 随机化签到顺序

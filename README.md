@@ -21,9 +21,13 @@
 
 ## 部署到 Cloudflare
 
-需要 Node.js 24+、npm，以及已开通 Workers 的 Cloudflare 账号。SQLite Durable Objects 可用于 Workers Free；以 [Cloudflare 当前配额与定价](https://developers.cloudflare.com/durable-objects/platform/pricing/) 为准。
+准备 Git、Node.js 24+（含 npm）和已开通 Workers 的 Cloudflare 账号。默认使用 Cloudflare 提供的 `workers.dev` 地址，无需购买域名、租服务器或配置 GitHub Secrets。SQLite Durable Objects 可用于 Workers Free；以 [Cloudflare 当前配额与定价](https://developers.cloudflare.com/durable-objects/platform/pricing/) 为准。
+
+**第一次部署请看 [完整自部署教程](docs/DEPLOY.md)**，包含 Windows 操作、密钥说明、自定义域名、升级备份和常见故障。
 
 ```sh
+git clone https://github.com/Trovoy/Weibo_Checkin.git
+cd Weibo_Checkin
 npm ci
 npx wrangler login
 # 首次生成管理密钥和加密密钥；不打印密钥。
@@ -33,9 +37,11 @@ npm run deploy
 node scripts/secrets.mjs --upload
 ```
 
-默认 Worker 名为 `weibo-checkin`。若已有同名服务，请先修改 `wrangler.jsonc` 的 `name`，避免覆盖。无需 KV、D1 或 R2。
+默认 Worker 名为 `weibo-checkin`。首次部署前确认账号下没有需要保留的同名 Worker；若有，先修改 `wrangler.jsonc` 的 `name`，避免覆盖。Wrangler 会创建代码所需的 Durable Object 绑定与迁移，无需手工创建 KV、D1 或 R2。
 
-本仓库使用自定义域名 `https://wb.trowoy.com`，配置在 `wrangler.jsonc` 的 `routes` 中；`workers.dev` 和版本预览入口已关闭。自行部署时，先把 `routes` 改成你在 Cloudflare 托管的域名；也可删除 `routes` 并设置 `workers_dev: true`，使用 Wrangler 返回的地址。用本地 `.dev.vars` 中的 `ADMIN_TOKEN` 解锁。
+打开部署输出的 `https://weibo-checkin.<你的子域>.workers.dev`。用文本编辑器打开本地 `.dev.vars`，复制 `ADMIN_TOKEN=` 后的值到面板解锁框。**管理密钥是面板密码，不是微博密码；`ENCRYPTION_KEY` 是服务端加密密钥，不用于登录。** 不要直接使用 `.dev.vars.example` 中的占位文字。
+
+公开配置不包含任何个人域名或 Cloudflare 账号 ID。需要自定义域名时，使用被 Git 忽略的 `wrangler.local.jsonc`，按 [自定义域名说明](docs/DEPLOY.md#自定义域名可选) 配置。
 
 1. 生成二维码，用微博 App 扫码并确认。微博拒绝请求时，可使用 Cookie 备用入口。
 2. 点击「读取我的关注与等级」，或输入名称搜索，选择结果加入列表。也可通过 `https://weibo.com/p/100808...` 链接或 ID 添加；ID 为 `100808` 后接 32 位十六进制字符。
@@ -70,7 +76,7 @@ Cron 为 `0 1 * * *`（UTC），即 UTC+8 的 09:00。修改 `wrangler.jsonc` �
 | `ENCRYPTION_KEY` | 32 字节随机数据的 Base64。用于加密 Cookie 与扫码状态。请备份，丢失后无法解密原登录。 |
 | `NOTIFY_WEBHOOK_URL` | 可选 HTTPS 地址，接收 POST JSON `{ "title": "微博签到需要处理", "content": "失败摘要" }`，不包含 Cookie。 |
 
-用 `npx wrangler secret put NAME` 更新单个 Secret，或修改 `.dev.vars` 后运行 `node scripts/secrets.mjs --upload`。脚本会上传文件里的所有 Secret。`.dev.vars` 已被 Git 忽略，不能提交。替换加密密钥前先在控制台断开账号，换密钥后重新登录。
+用 `npx wrangler secret put NAME` 更新单个 Secret，或修改 `.dev.vars` 后运行 `node scripts/secrets.mjs --upload`。脚本只上传上表中的配置，不上传其他变量。使用本地部署配置时，追加 `--config wrangler.local.jsonc`，确保密钥与代码上传到同一个 Worker。`.dev.vars` 已被 Git 忽略，不能提交。替换加密密钥前先在控制台断开账号，换密钥后重新登录。
 
 ## 本地开发与验证
 
@@ -79,6 +85,7 @@ npm ci
 node scripts/secrets.mjs
 npm run dev
 npm run check
+npm run check:public
 npm test
 npm run build
 ```
@@ -113,4 +120,6 @@ GSAP 固定为 npm 依赖中的版本，发布资源保存在 `public/vendor/`�
 
 参考 [原始项目](https://github.com/Trovoy/Weibo_Checkin)、[近期签到接口说明](https://github.com/88lin/weibo-checkin/blob/main/weibo_checkin.py)、[新浪扫码流程](https://github.com/CharlesPikachu/DecryptLogin/blob/master/DecryptLogin/modules/core/weibo.py) 及 [Cloudflare Alarms 文档](https://developers.cloudflare.com/durable-objects/api/alarms/)。微博端点是非公开接口，模拟测试通过不能代替真实账号验收。
 
-上线后须在实际 Cloudflare 出口验证：生成二维码 → 手机确认 → 状态检测有效 → 超话签到成功 / 已签 → Cron 自动执行。**没有真实登录及签到结果前，本版属于待实测版本。**
+本版本已在实际 Cloudflare 环境验证电脑网页扫码、手机网页补充扫码、账号资料、关注与个人等级读取，以及手动超话签到。每个自行部署的实例仍需完成自己的验收：生成二维码 → 手机确认 → 状态检测有效 → 超话签到成功 / 已签 → 开启自动签到 → 次日检查结果。Cron 定时执行和长期登录稳定性需要运行观察。
+
+提交问题前请阅读 [隐私与问题反馈说明](SECURITY.md)，不要附带 Cookie、密钥、登录二维码或完整请求头。

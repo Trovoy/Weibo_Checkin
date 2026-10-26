@@ -118,12 +118,12 @@ test('day boundary uses UTC+8 and topic configuration rejects duplicate IDs', ()
 });
 test('topic search uses named supertopic links, deduplicates and rejects foreign destinations', () => {
   const id = '100808' + 'a'.repeat(32), other = '100808' + 'b'.repeat(32);
-  const html = `<a href="https://weibo.com/p/${other}"><span>单依纯音乐</span>超话</a>
-    <a href="//weibo.com/p/${id}?from=search"><b>单依纯</b>超话</a>
-    <a href="https://weibo.com/p/${id}" title="单依纯超话">duplicate</a>
+  const html = `<a href="https://weibo.com/p/${other}"><span>示例音乐</span>超话</a>
+    <a href="//weibo.com/p/${id}?from=search"><b>示例</b>超话</a>
+    <a href="https://weibo.com/p/${id}" title="示例超话">duplicate</a>
     <a href="https://evil.test/p/${id}">fake</a><a href="https://weibo.com/u/123">not a topic</a>`;
-  assert.deepEqual(parseTopicSearch(html, '单依纯'), [{ id, name: '单依纯' }, { id: other, name: '单依纯音乐' }]);
-  assert.deepEqual(parseTopicSearch('<html>empty</html>', '单依纯'), []);
+  assert.deepEqual(parseTopicSearch(html, '示例'), [{ id, name: '示例' }, { id: other, name: '示例音乐' }]);
+  assert.deepEqual(parseTopicSearch('<html>empty</html>', '示例'), []);
 });
 test('personal levels come only from followed membership cards, never topic ranks or post authors', () => {
   const id = '100808' + 'a'.repeat(32), other = '100808' + 'b'.repeat(32);

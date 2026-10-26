@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:local": "wrangler deploy --config wrangler.local.jsonc",
     "check": "tsc --noEmit",
+    "check:public": "node scripts/check-public.mjs",
     "test": "node --experimental-strip-types --test --experimental-test-isolation=none test/*.test.ts",
     "build": "wrangler deploy --dry-run --outdir dist"
   },
