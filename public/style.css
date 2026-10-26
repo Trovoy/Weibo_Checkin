@@ -173,22 +173,25 @@ html { scroll-padding-top: 20px; }
 .stats-tabs { display: flex; padding: 3px; gap: 3px; background: #f3f4f6; border-radius: 6px; margin: 14px 0; }
 .stats-tabs button { flex: 1; min-height: 28px; padding: 4px 8px; font-size: 12px; border: 0; background: transparent; color: var(--muted); }
 .stats-tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px #191b2012; }
-.recent-total { display: flex; align-items: baseline; gap: 6px; margin: 4px 0 12px; }
-.recent-total strong { font-size: 30px; line-height: 1.3; font-weight: 600; font-variant-numeric: tabular-nums; }
+.recent-total { display: flex; align-items: baseline; gap: 7px; margin: 4px 0 12px; }
+.recent-total strong { font-size: 32px; line-height: 1.3; font-weight: 600; letter-spacing: -.8px; font-variant-numeric: tabular-nums; }
 .recent-total span { font-size: 12px; color: var(--muted); }
-.recent-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.recent-column { min-width: 0; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
-.recent-value { display: block; line-height: 18px; color: var(--ink); }
-.recent-track { height: 100px; display: flex; align-items: end; border-bottom: 1px solid var(--line); }
-.recent-stack { width: 100%; display: flex; flex-direction: column-reverse; transform-origin: center bottom; }
-.recent-segment { display: block; background: #327458; }
-.recent-segment.ns { background: #8094b4; }
-.recent-date { display: block; margin-top: 5px; color: var(--muted); }
-.recent-column.today .recent-date { color: var(--ink); font-weight: 600; }
-.recent-legend { display: flex; justify-content: center; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+.recent-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; position: relative; }
+.recent-bars::before { content: ""; position: absolute; inset: 7px 0 27px; background: repeating-linear-gradient(to top, #eef1f5 0, #eef1f5 1px, transparent 1px, transparent 28px); pointer-events: none; }
+.recent-column { min-width: 0; position: relative; text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+.recent-value { position: absolute; left: 50%; transform: translateX(-50%); min-width: 18px; padding: 0 3px; border-radius: 5px; line-height: 20px; color: #536174; background: #fff; font-weight: 600; }
+.recent-track { height: 118px; display: flex; align-items: end; justify-content: center; position: relative; }
+.recent-stack { width: 54%; max-width: 16px; display: flex; flex-direction: column-reverse; transform-origin: center bottom; border-radius: 5px 5px 3px 3px; overflow: hidden; }
+.recent-segment { display: block; background: linear-gradient(90deg, #526d8b, #6c86a3); }
+.recent-segment.ns { background: #b0c0d3; }
+.recent-date { display: inline-block; min-width: 25px; line-height: 22px; margin-top: 5px; color: #6d7786; font-size: 10px; border-radius: 5px; white-space: nowrap; }
+.recent-column.today .recent-date { color: #354f6c; background: #edf2f8; font-weight: 600; min-width: 30px; padding: 0 4px; }
+.recent-column.today:not(.is-empty) .recent-value { color: #fff; background: #354f6c; min-width: 24px; }
+.recent-column.is-empty .recent-value { color: #6e7989; font-weight: 400; }
+.recent-legend { display: flex; justify-content: center; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 12px; }
 .recent-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.recent-legend i { width: 7px; height: 7px; border-radius: 2px; background: #327458; }
-.recent-legend .legend-ns { background: #8094b4; }
+.recent-legend i { width: 7px; height: 7px; border-radius: 2px; background: #607c9a; }
+.recent-legend .legend-ns { background: #b0c0d3; }
 #recent-retry { display: block; margin: 2px auto 0; min-height: 24px; font-size: 12px; }
 .platform-card { padding: 20px; }
 .platform-card h3 { margin: 0; font-size: 15px; font-weight: 600; }

@@ -46,16 +46,17 @@ function renderRecentStats() {
   $('recent-bars').replaceChildren();
   const max = Math.max(1, ...series.map(day => day.weibo + day.nodeseek));
   for (const day of series) {
-    const count = day.weibo + day.nodeseek, column = node('div', undefined, 'recent-column' + (day.date === state.today ? ' today' : ''));
+    const count = day.weibo + day.nodeseek, column = node('div', undefined, 'recent-column' + (day.date === state.today ? ' today' : '') + (!count ? ' is-empty' : ''));
     column.setAttribute('role', 'listitem');
     const unknown = pending || (partial && !recentMonths.has(day.date.slice(0, 7)));
     column.setAttribute('aria-label', `${day.date}，微博 ${day.weibo} 项，NodeSeek ${unknown ? '待确认' : day.nodeseek + ' 项'}，已确认共 ${count} 项`);
     column.title = column.getAttribute('aria-label');
     const track = node('div', undefined, 'recent-track'), stack = node('div', undefined, 'recent-stack');
     for (const [value, cls] of [[day.weibo, ''], [day.nodeseek, ' ns']]) {
-      const segment = node('span', undefined, 'recent-segment' + cls); segment.style.height = `${value / max * 100}px`; stack.append(segment);
+      const segment = node('span', undefined, 'recent-segment' + cls); segment.style.height = `${value / max * 86}px`; stack.append(segment);
     }
-    track.append(stack); column.append(node('span', String(count), 'recent-value'), track, node('span', day.date === state.today ? '今天' : day.date.slice(8), 'recent-date'));
+    const value = node('span', String(count), 'recent-value'); value.style.bottom = `${count / max * 86 + 7}px`;
+    track.append(stack, value); column.append(track, node('span', day.date === state.today ? '今天' : day.date.slice(8), 'recent-date'));
     $('recent-bars').append(column);
   }
   if (motion && !reduceMotion.matches && !$('overview').hidden) motion.fromTo(document.querySelectorAll('.recent-stack'), { scaleY: 0 }, { scaleY: 1, duration: .45, stagger: .035, ease: 'power2.out', clearProps: 'transform' });
