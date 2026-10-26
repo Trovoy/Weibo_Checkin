@@ -8,6 +8,8 @@ const pages = {
   topics: ['我的超话', '读取已关注的超话，管理签到列表与自动签到。'],
   account: ['微博账号', '查看当前账号，管理登录和个人等级连接。'],
   nodeseek: ['NodeSeek', '管理每日签到、Cookie 检测、随机时段与鸡腿记录。'],
+  'nodeseek-settings': ['NodeSeek · 签到设置', '设置自动签到、随机时段与领取方式，按需更新凭证。'],
+  'nodeseek-sync': ['NodeSeek · 扩展同步', '在本工作台连接浏览器，自动同步 NodeSeek 登录状态。'],
   history: ['签到记录', '按平台与月份查看签到结果。']
 };
 function enter(target, stagger = 0) {
@@ -22,14 +24,30 @@ function showPage(animate = true) {
     const active = link.hash === '#/' + key; link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   });
+  const group = ['topics', 'account'].includes(key) ? 'weibo' : key.startsWith('nodeseek') ? 'nodeseek' : '';
+  for (const name of ['weibo', 'nodeseek']) {
+    $('nav-' + name).classList.toggle('branch-active', name === group);
+    if (name === group) toggleNav(name, true, animate);
+  }
   $('page-heading').textContent = pages[key][0]; $('page-label').textContent = pages[key][0];
   $('overview-copy').textContent = pages[key][1]; $('date').hidden = key !== 'overview';
   document.title = pages[key][0] + ' · 每日';
-  $('platform-home').href = key === 'nodeseek' ? 'https://www.nodeseek.com' : 'https://weibo.com';
-  $('platform-home').textContent = key === 'nodeseek' ? '打开 NodeSeek ↗' : '打开微博 ↗';
-  if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelector('[data-page="' + key + '"]')); $('page-heading').focus({ preventScroll: true }); }
+  $('platform-home').href = key.startsWith('nodeseek') ? 'https://www.nodeseek.com' : 'https://weibo.com';
+  $('platform-home').textContent = key.startsWith('nodeseek') ? '打开 NodeSeek ↗' : '打开微博 ↗';
+  if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
 }
+function toggleNav(name, open, animate = true) {
+  const button = $('nav-' + name), panel = $('nav-' + name + '-items'), arrow = button.querySelector('.nav-chevron');
+  if (button.getAttribute('aria-expanded') === String(open)) return;
+  button.setAttribute('aria-expanded', String(open));
+  if (motion) { motion.killTweensOf([panel, arrow]); motion.set(arrow, { rotation: open ? 90 : 0 }); }
+  if (!animate || !motion || reduceMotion.matches) { panel.hidden = !open; if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' }); return; }
+  motion.fromTo(arrow, { rotation: open ? 0 : 90 }, { rotation: open ? 90 : 0, duration: .2, ease: 'power2.out' });
+  if (open) { panel.hidden = false; motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', clearProps: 'height,opacity,overflow' }); }
+  else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
+}
+for (const name of ['weibo', 'nodeseek']) $('nav-' + name).addEventListener('click', () => toggleNav(name, $('nav-' + name).getAttribute('aria-expanded') !== 'true'));
 function navigate(hash) {
   const key = hash.replace(/^#\/?/, '');
   if (!Object.hasOwn(pages, key)) return;
@@ -167,7 +185,7 @@ async function refresh(settings = false) {
   state = await api('status');
   $('unlock').hidden = true; $('dashboard').hidden = false; $('lock').hidden = false;
   render(settings);
-  if (entering) enter(document.querySelector('[data-page]:not([hidden])'));
+  if (entering) enter(document.querySelectorAll('[data-page]:not([hidden])'), .04);
   if (typeof refreshPlatforms === 'function') refreshPlatforms().catch(() => {});
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => refresh().catch(e => { toast(e.message, true); }), state.job?.status === 'running' ? 4000 : 60000);

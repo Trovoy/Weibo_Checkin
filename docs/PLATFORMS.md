@@ -1,59 +1,62 @@
-# 连接 NodeSeek 与扩展平台
+# 原生 NodeSeek 与平台扩展
 
-工作台将界面和管理会话统一，各平台保留自己的凭证、数据和执行方式。微博仍由本项目的 Durable Object 运行；NodeSeek 通过 Cloudflare Service Binding 连接到同账号下已有的 Worker。工作台不会另建一套 NodeSeek Cron，也不会因打开页面而执行签到。
+微博与 NodeSeek 的执行代码、管理界面、浏览器同步和调度都在本仓库、同一个 Worker 中。每个平台使用自己的 SQLite Durable Object 保存状态并串行执行操作，不依赖另一个签到面板或 Service Binding。
 
-## NodeSeek 连接器兼容范围
+## NodeSeek 首次使用
 
-当前连接器适配具备以下管理 API 的 NodeSeek 单账号 Worker，不是任意签到脚本的通用兼容层：
+按 [自部署教程](DEPLOY.md) 部署。默认配置包含 `NodeSeekAccount` 迁移、`NODESEEK` 绑定、`BROWSER` 浏览器绑定及分钟 Cron。Cloudflare 账号须可使用 Browser Run，按官方当前配额和计费运行；打开工作台不会启动云端浏览器。
 
-| 原服务接口 | 工作台用途 |
-| --- | --- |
-| `GET /status` | `{ date, record }`，当日签到结果 |
-| `GET /config` | 登录配置摘要、`cookieHealth`、随机奖励模式、`schedule`、扩展配对状态 |
-| `GET /history?month=YYYY-MM` | `{ records }`，当月每日记录与鸡腿数量 |
-| `POST /run`、`POST /health` | 手动签到、只读检测 Cookie |
-| `POST /config` | `{ random, cookie?, userAgent? }`，更新设置 |
-| `POST /schedule` | `{ start, end }`，设置随机签到时段 |
-| `POST /reconcile` | `{ month }`，从账单补全记录 |
+密钥脚本会生成独立 `NODESEEK_CREDENTIAL_KEY`，与面板密钥一起上传。已有密钥不覆盖；缺少 NodeSeek 密钥时只补充这一项。这个密钥加密 NodeSeek Cookie，也作为随机计划的稳定种子，请备份。
 
-原服务必须支持 `Authorization: Bearer <该服务管理员密钥>`。连接器不向浏览器回传该密钥、Cookie 或密文；不允许指定任意目标 URL，也不代理扩展同步、配对授权或任意其他路径。原 NodeSeek 服务及浏览器扩展由其部署者独立维护，本仓库不包含一套新的 NodeSeek 执行引擎。
+1. 展开左侧“NodeSeek”，进入“签到设置”。
+2. 手动保存 NodeSeek Cookie 和取得 Cookie 时的 User-Agent，或按下一节连接扩展。不使用账号密码自动登录。
+3. 在“签到与记录”检测 Cookie，核对结果后按需手动签到。
+4. 设置随机时段、随机或固定奖励；需要定时执行时勾选“每日自动签到”并保存。新实例默认关闭。
 
-## 配置步骤
+每天在所选时段内按日期生成一个稳定执行时间（UTC+8），14:00–14:05 检查未完成项。分钟 Cron 只负责到期检测；同一天、同一时段不反复启动。每日记录成功后跳过请求，记录不设 TTL。网络中断或不明确的服务器错误不重试签到 POST；再次执行前先通过账单确认结果，账单不足以确认时停止。
 
-1. 确认已有 NodeSeek Worker 正常运行，记下 Worker 的服务名称及管理员密钥。服务名称是在 Cloudflare Workers 列表中显示的名称，不是域名。
-2. 按 [自部署教程](DEPLOY.md#自定义域名可选) 复制 `wrangler.local.jsonc`。即使用 `workers.dev`，也可以用这份本地配置保存私有服务绑定。
-3. 在本地配置顶层添加下面的绑定，替换为自己的服务名称，保留现有 Durable Object 配置：
+“从账单补全”只查询最多 5 页收益，保存签到对应的数量和时间，不保存余额或无关消费记录。未知收益和时间明确显示未知，不编造零收益或领取时间。
+
+## 同步扩展
+
+在“扩展同步”下载 ZIP 并解压。在 Chrome / Edge 扩展管理页开启开发者模式，加载解压目录。也可以直接加载本仓库 `extension/` 目录。
+
+在扩展中填写你自己的 HTTPS 面板根地址，如 `https://panel.example.com`，点击“连接面板”，允许扩展访问该地址。扩展会打开工作台；使用管理密钥解锁后，在“扩展同步”确认连接。回到扩展点击“检查连接”，成功后会同步 Cookie。以后 Cookie 变化、访问 NodeSeek 和周期检测会自动触发同步。
+
+旧版扩展需要更新并重新连接新域名；不能在未获得浏览器授权时替用户增加域名访问权限。迁移后的云端 Cookie 可继续使用，重新配对不要求重新签到。
+
+配对使用 10 分钟随机挑战和验证者证明。只有已解锁管理会话可以批准；同步令牌只能更新 NodeSeek Cookie，不能查询账号数据、修改时段或触发签到。新的配对替换旧浏览器；工作台可随时断开扩展，保留已有云端 Cookie。
+
+扩展只读取 NodeSeek 站点 Cookie。HTTP 主机权限用于读取站点的非 Secure 登录 Cookie，所有网络同步仍使用 HTTPS。面板域名权限按用户填写的地址请求，不默认授权访问所有网站。不要填写不受自己控制的面板。
+
+`npm run build` / `npm run deploy` / `npm run deploy:local` 会生成通用 `public/extension.zip`。ZIP 不含个人地址、Cookie 或密钥，无须为域名修改源码。
+
+## 从旧独立 Worker 迁移
+
+先备份旧 Worker 配置、Secrets 和 KV 数据。停止旧 Cron 并冻结同步写入，再让新实例读取最终数据；不要让两套引擎同时签到。若修改同一个工作台的配置，保留其 Worker 名、微博绑定和既有迁移。
+
+1. 在被忽略的 `wrangler.local.jsonc` 顶层临时添加旧 KV 的只读导入绑定：
 
 ```jsonc
-"services": [{ "binding": "NODESEEK_SERVICE", "service": "your-nodeseek-worker" }],
+"kv_namespaces": [{ "binding": "NODESEEK_LEGACY_STATE", "id": "替换为旧_KV_ID" }],
 ```
 
-4. 在本地 `.dev.vars` 加一行 `NODESEEK_ADMIN_TOKEN=...`，值为 NodeSeek 服务已有的管理员密钥。不要使用本工作台的 `ADMIN_TOKEN`，也不要使用浏览器扩展的 `SYNC_TOKEN` 或配对令牌。
-5. 发布并上传 Secret：
+2. 将旧实例 `CREDENTIAL_KEY` 的原值保存为新实例的 `NODESEEK_CREDENTIAL_KEY`，不要重新生成；上传 Secret。
+3. 发布新代码。首次激活 `NodeSeekAccount` 时导入加密配置、每日记录、时段、健康状态和扩展配对摘要。临时配对请求不导入。先验证 Cookie 可以解密，再以事务提交；失败不会标记完成。
+4. 核对全部历史的日期、收益、领取时间和次数，验证 Cookie 检测与今日已签去重。迁入的旧自动计划保持开启；新安装默认关闭。
+5. 从本地配置移除 `NODESEEK_LEGACY_STATE` 后再次发布并验证。已完成的导入不会再次覆盖新数据。
+6. 更新扩展地址并重新连接。确认新实例独立运行后退役旧 Worker、旧入口、旧管理 Secret 及其专用 Access 应用；确认 KV 无其他使用者且备份可恢复后，再删除旧 KV。
 
-```sh
-npm run deploy:local
-node scripts/secrets.mjs --upload --config wrangler.local.jsonc
-```
+新版不再使用 `NODESEEK_SERVICE` / `NODESEEK_ADMIN_TOKEN`。迁移完成后删除旧服务绑定和这把过时 Secret。公开仓库不要包含真实 KV ID、域名或密钥。
 
-6. 刷新并解锁工作台，在“NodeSeek”核对原有记录与设置。先检查状态，再按需检测或手动签到。已经成功的当天记录会显示“今日已签到”；工作台不会自动额外补跑。
+## 加入其他签到平台
 
-连接后，同一把面板管理密钥即可管理微博和 NodeSeek，因此它具有两个平台的管理能力。原 NodeSeek 的公开入口、Cloudflare Access 和同步扩展不需要更改，原有随机时段、14:00 检查补签仍由原服务执行。后续日常操作可以在工作台完成；扩展首次配对或恢复配对仍使用原服务的授权流程。
+后续功能直接加入这个仓库：
 
-NodeSeek 页面支持状态、当月记录、鸡腿、Cookie 检测、随机时段、领取模式、手动凭证更新及账单补全。未知收益不会显示为零，未提供领取时间时会明确显示“未提供”。账单补全是查询操作，不是签到。
+1. 在 `src/<platform>/` 实现执行、状态和凭证存储；使用独立 Durable Object 串行化，同一平台的手动操作与定时操作共用实例。
+2. 在 `src/platforms.ts` 的 `platforms` 注册 ID、名称、可用性判断和操作分发。接口只接受固定路径与校验过的输入，输出使用允许字段，不接受任意 URL 或执行上传脚本。
+3. 在 `public/app.js` 注册页面、`public/index.html` 添加平台导航分组和控件；概览卡片从注册信息生成。动画使用本地 GSAP，并尊重减少动态效果设置。
+4. 在 `src/index.ts` 的共享调度入口分发到平台自己的实例，更新 Wrangler 绑定和迁移。不要为新平台再建独立面板。
+5. 添加鉴权、凭证隔离、未知结果、去重和持久化恢复测试；运行检查、测试、公开配置检查和构建。
 
-## 接入更多平台
-
-适配器注册入口为 `src/platforms.ts` 的 `platforms` 数组。每个适配器定义：
-
-- 唯一 `id`、显示名称、简介和页面标识。
-- `available(env)`：判断自己的绑定 / 密钥是否齐全；可选平台缺配置不能影响其他平台。
-- `handle(request, action, env)`：实现固定的操作白名单和输入 / 输出校验。不要接收任意 URL、透传浏览器凭证，或向前端暴露原始上游响应。
-
-新增适配器后在 `public/app.js` 注册页面，在 `public/index.html` 加入对应功能区，并在 `public/platforms.js` 中补充状态与记录呈现。概览的平台注册卡片由 `/api/platforms` 自动生成；平台差异仍由各适配器和页面处理，不支持上传并执行任意脚本。
-
-统一入口在分发前验证管理会话、写请求来源和 JSON 体积。适配器还要负责自己的业务校验、超时、敏感字段过滤和失败隔离。手动执行结果未知时先刷新原平台记录，工作台不会盲目重试；接入现有执行服务时也应核对该服务自己的重试语义。
-
-各平台的调度由各自服务负责。需要迁移某个平台的 Cron 时，应先设计一次性切换和重复执行保护，再停用旧调度；仅连接工作台不构成调度迁移。
-
-发布前运行 `npm run check`、`npm test`、`npm run check:public` 和 `npm run build`。私有绑定保存在被忽略的本地文件中，公开提交只使用示例名称。
+平台仍需实现自己的协议和调度规则，当前没有任意脚本上传或无需代码的通用插件功能。
