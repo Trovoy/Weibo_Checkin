@@ -9,6 +9,7 @@ function resetHuya() {
 function renderHuya() {
   const s = hySnapshot, ready = !!s?.configured && !hyError;
   $('hy-state').textContent = hyError ? '读取失败' : s?.paused ? '已暂停 · 待核对' : s?.record ? hyLabels[s.record.code] : ready ? '已配置' : '未连接';
+  $('hy-state').className = 'badge ' + (hyError ? 'failed' : s?.paused ? 'warning' : s?.record?.code === 'SUCCESS' ? 'success' : ['ERROR', 'REJECTED'].includes(s?.record?.code) ? 'failed' : 'neutral');
   $('hy-count').textContent = s?.inventory ? `${s.inventory.count} 个` : '—';
   $('hy-checked').textContent = s?.inventory ? '检测于 ' + time(s.inventory.checkedAt) : '点击检测背包读取当前数量';
   $('hy-room-label').textContent = s?.room ? `${s.room.name} · ${s.room.id}` : '未设置';
@@ -19,7 +20,7 @@ function renderHuya() {
   syncHuyaControls();
   $('hy-history').replaceChildren(); $('hy-empty').hidden = !!s?.history.length;
   for (const entry of s?.history || []) {
-    const row = node('tr'), result = node('td'); result.append(node('span', hyLabels[entry.code], 'badge ' + (entry.code === 'SUCCESS' ? 'success' : 'neutral')));
+    const row = node('tr'), result = node('td'); result.append(node('span', hyLabels[entry.code], 'badge ' + (entry.code === 'SUCCESS' ? 'success' : entry.code === 'REVIEW' ? 'warning' : ['ERROR', 'REJECTED'].includes(entry.code) ? 'failed' : 'neutral')));
     row.append(node('td', time(entry.at)), node('td', `${entry.room.name} · ${entry.room.id}`), node('td', entry.code === 'SUCCESS' ? `${entry.count} 个` : '—'), result); row.title = entry.message; $('hy-history').append(row);
   }
   $('hy-credential').textContent = s?.configured ? '已保存凭证，留空保留。检测背包可确认当前连接。' : '尚未连接账号';
