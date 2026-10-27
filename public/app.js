@@ -157,6 +157,7 @@ function render(settings = false) {
   $('topic-count').textContent = state.topics.length;
   $('date').textContent = state.today.replaceAll('-', ' / ');
   $('login-stat').textContent = labels[state.login]; $('account-badge').textContent = labels[state.login];
+  $('account-badge').className = 'badge ' + ({ valid: 'success', expired: 'warning', blocked: 'warning' }[state.login] || 'neutral');
   $('last-check').textContent = state.lastChecked ? '上次检测 ' + time(state.lastChecked) : '等待首次登录';
   $('schedule-stat').textContent = state.enabled ? '已开启' : '已关闭';
   $('notice').hidden = !state.message; $('notice').textContent = state.message || '';
