@@ -1,38 +1,34 @@
-# 虎牙免费背包虎粮
+**English** | [简体中文](HUYA.zh-CN.md)
 
-虎牙作为第三个平台直接存储、运行在统一 Worker 中，使用独立的 `HUYA / HuyaAccount` SQLite Durable Object。升级保留 v1、v2 迁移，再追加 v3；已有微博和 NodeSeek 数据不迁移、不覆盖。不需要额外的服务令牌、独立面板或浏览器扩展权限。
+# Huya free backpack tiger food
 
-## 连接和使用
+Huya runs natively in the shared Worker with an isolated HUYA / HuyaAccount SQLite Durable Object. Upgrades retain v1/v2 migrations and append v3; existing Weibo and NodeSeek storage is preserved. No separate dashboard, service token or extension permission is needed.
 
-1. 解锁控制台，展开「虎牙直播 → 账号与设置」。
-2. 填写目标房间号。保存时会访问虎牙的公开房间页，核对主播 UID 和显示名称；不接受任意 URL 或跳转房间。
-3. 点击「生成登录二维码」，使用虎牙 App 扫描官方二维码并确认。云端浏览器会自动接收 Cookie，加密保存后关闭；二维码会话最多 3 分钟，到期自动清理。扫码不会赠送礼物。
-4. 保存，进入「虎粮与记录」，点击「检测背包」。检测不会送礼或创建赠送订单。检查接收房间后，点击「送出全部免费虎粮」。
-5. 核对真实赠送记录成功后，再在设置中开启每日自动执行。默认关闭，默认时间为 UTC+8 的 09:30，可修改。
+## Connect and use
 
-本机浏览器中的登录不会自动同步到云端。扫码使用 `BROWSER` 绑定打开虎牙官方页面，不需要填写密码；临时会话和二维码仅在解锁后的面板访问，使用 AES-256-GCM 加密存储，完成、取消或超时后清理。登录凭证使用已有 `ENCRYPTION_KEY` 加密，服务端不会回显 Cookie。
+1. Unlock the dashboard and open Huya → account/settings in the grouped sidebar.
+2. Enter the target room number. Saving resolves the public Huya room page and records its broadcaster UID/name; arbitrary URLs and redirect rooms are rejected.
+3. Generate a login QR code and scan/confirm it in the Huya app. A cloud browser opens the official login page and captures the resulting Cookie, then closes. QR sign-in does not send gifts.
+4. Open tiger food/records, read the backpack, check the displayed recipient, then send all free tiger food.
+5. Verify a successful real delivery before enabling the daily schedule. Fresh installs default to off, with an editable default time of 09:30 UTC+8.
 
-遇到验证或二维码无法加载时，可展开「使用 Cookie 备用连接」：在已登录的虎牙电脑网页打开开发者工具的「网络」，刷新页面，复制发往 `huya.com` 的请求头 Cookie 值（不含 `Cookie:` 前缀），只粘贴到控制台。不要发到聊天、日志或 GitHub。虎牙仍可使 Cookie 失效，扫码自动获取不代表 Cookie 永久有效；失效后重新扫码即可。
+Local browser logins do not automatically synchronize to the Worker. QR sign-in requires the BROWSER binding. Temporary sessions/images are encrypted with AES-256-GCM, accessible only after dashboard unlock and cleaned up on completion, cancellation or a three-minute expiry. Reloading the page can resume an active QR session. Saved Cookies use the existing ENCRYPTION_KEY and are not returned to the browser.
 
-## 赠送边界和结果
+If QR sign-in requires a challenge, complete it on the official site or use the Cookie fallback. In a logged-in desktop Huya page, open developer tools → Network, refresh, and copy the Request Cookie header value from a huya.com request, without the Cookie: prefix. Paste it only into your dashboard. Never share Cookies in chat, logs or GitHub. Huya controls expiry; QR capture does not make a Cookie permanent. Reconnect when it expires.
 
-- 仅处理背包中 ID 为 4、名称严格为「虎粮」的普通虎粮；其他礼物和超级虎粮不参与。
-- 每次先读取当前库存，赠送该快照的全部数量。大于 999 的库存从接口读取完整数值，不依赖网页上的 `999+`。
-- 使用官方背包页的 `consumeGiftSafe` 和固定 `iPayPloy=2`（背包方式）。没有购买、充值或余额不足时切换付费方式的代码。
-- 送出前持久化数量、目标主播和订单号。成功必须满足回执订单、礼物、数量、接收主播一致，支付金额为零，并再次读取确认库存扣减到零。
-- 回执丢失、格式变化、扣减不一致、进程中断等情况标记「待核对」并暂停。不会自动再发一单。先在虎牙核对包裹和礼物收支，再在面板手动解除暂停；解除后自动执行保持关闭。
-- 每个 UTC+8 日期成功赠送最多一次，手动操作和定时任务共用去重。每日计划最多尝试一次，失败和空背包不会在每分钟触发中反复重试；手动检测后可主动再执行。
-- 「无可用虎粮」只说明没有读到本次可赠送库存，**不会记为成功或宣称粉丝牌已续期**。成功赠送也只核实礼物送达，不直接读取或保证粉丝牌到期时间。
-- 保留最近 200 次操作记录；概览按成功赠送天数计数，每天 1 项，虎粮数量在赠送页单独展示。
+## Delivery boundaries
 
-此接入使用虎牙非公开网页协议，协议和 Cloudflare 出口的可用性可能变化。上线前应完成一次自己的真实账号验证；自动化测试只能验证程序边界，不能代替真实赠送回执。
+- Only ordinary backpack tiger food with item ID 4 and the exact name 虎粮 is eligible. Other gifts and super-fan tiger food are excluded.
+- Each run reads the full inventory count, including values above the UI's 999+ display, and sends that snapshot quantity to one configured broadcaster. The broadcaster UID is rechecked against the public room page before delivery.
+- Requests use the official package page's consumeGiftSafe with fixed iPayPloy=2, the backpack policy. There is no purchase, recharge or fallback to paid balances.
+- Before sending, the engine persists the order ID, recipient and count. Success requires matching order, item, count, recipient, zero payment and a second inventory read confirming zero remaining stock.
+- Lost responses, unknown codes, changed receipts, inconsistent deductions or interrupted execution pause further delivery. No new order is automatically retried. Check Huya's backpack and gift ledger before manually clearing the pause; automatic execution remains off after reconciliation.
+- At most one successful delivery per UTC+8 date; manual and scheduled calls share deduplication. The daily plan attempts once, without minute-by-minute retries after failures or empty inventory. A manual attempt remains possible after inspection.
+- Empty stock does not count as success or prove fan-badge renewal. Successful delivery confirms the gift only; this integration does not read or guarantee badge expiry dates.
+- The last 200 operations are retained. Overview statistics count successful delivery days, one item per day; gift quantities appear separately in the Huya page.
 
-## 协议依据
+## Protocol and deployment notes
 
-实现仅参考官方背包页面公开的请求字段，未运行或集成第三方签到脚本：
+The implementation uses fields from the official https://hd.huya.com/web/webPackageV2/index.html page (observed bundle umi.0b4ee0c1.js): getPackageGift, getSequence and consumeGiftSafe. No third-party check-in script is executed or bundled. The project's WUP v3 codec bounds response size, nesting, collection counts and integer precision, rejects duplicate fields and stops on unrecognized responses.
 
-- 官方背包入口：`https://hd.huya.com/web/webPackageV2/index.html`
-- 研究时版本：`umi.0b4ee0c1.js`，使用 `getPackageGift`、`getSequence`、`consumeGiftSafe`。
-- WUP v3 编解码在项目中单独实现，限制响应大小、嵌套深度、集合数量、整数精度和重复字段；无法识别的响应停止处理。
-
-代码中的 MD5 应用常量来自官方公开网页客户端，是协议签名常量，不是部署者的管理密钥或 Cookie。个人房间号、主播 UID、登录凭证和执行记录只在私有 Durable Object 中保存。
+MD5 application constants in the source are public web-client protocol constants, not deployment secrets. Personal rooms, broadcaster UIDs, credentials and records stay in private Durable Object storage. These non-public interfaces and Cloudflare egress availability may change; test your own account before enabling scheduling. Mocked tests cannot prove upstream behavior or long-term login validity.

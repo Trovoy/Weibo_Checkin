@@ -1,36 +1,38 @@
-# 隐私与问题反馈
+**English** | [简体中文](SECURITY.zh-CN.md)
 
-这是自行托管的单账号工具。公开仓库不应包含真实账号配置、私人域名、登录二维码、凭证或数据库快照。
+# Privacy and reporting
 
-## 哪些数据由谁持有
+This is a self-hosted, single-user tool. Public repository files must not contain real account settings, private domains, login QR codes, credentials or database snapshots.
 
-- 静态面板可以公开访问；账号资料、头像、关注 / 等级和签到记录需要管理会话，修改操作还校验请求来源。
-- 微博 Cookie 和扫码临时状态用 AES-256-GCM 加密保存在自己的 Cloudflare Durable Object 中，不回显到浏览器。账号资料、配置与签到记录同样托管在 Cloudflare，但未额外进行应用层加密。
-- 管理密钥和加密密钥上传到自己的 Cloudflare Secrets。持有 Worker 管理权限和解密密钥的人具有读取能力，不属于端到端加密。
-- 代码需要代表账号访问微博；扫码、登录检测、等级读取和签到均涉及微博服务。未配置通知时，不会发送通知 Webhook。
-- 页面不加载第三方分析、外部脚本或外部字体；扫码时会从微博官方图片主机加载二维码。
-- 面板管理密钥可管理已启用的平台。平台分别使用自己的 SQLite Durable Object 和加密凭证，接口只返回允许字段。NodeSeek 扩展使用独立配对令牌，只能同步凭证；管理操作仍须有效面板会话和同源请求。公开同步与配对轮询端点不会接受面板 Cookie 作为同步授权。
+## Data ownership and access
 
-Cloudflare Puppeteer 1.4.0 的上游下载工具链仍有 `extract-zip` 审计告警，目前没有已发布修复。本项目只使用 Browser Run 的远程浏览器连接，不使用浏览器下载或解压 API，也不接受用户上传的压缩包；已升级有修复版本的 `basic-ftp`。该限制不代表所有依赖审计为零，升级时仍需检查上游公告。
+- The static login page can be public. Profiles, avatars, followed topics/levels and records require a management session; mutations also validate the request origin.
+- Weibo/Huya cookies and temporary QR state use AES-256-GCM in your Cloudflare Durable Object; saved cookies are not returned to the browser. Profiles, configuration and check-in logs are also hosted by Cloudflare, without additional application-level encryption.
+- Admin/encryption keys reside in your Cloudflare Secrets. A Worker administrator with the keys can read the data; this is not end-to-end encryption.
+- The Worker contacts Weibo on the account's behalf for QR login, validation, levels and check-ins. A notification webhook runs only when configured.
+- The dashboard loads no third-party analytics, external scripts or fonts. Weibo QR images use its official image host. Huya QR sign-in opens the official Huya page in Cloudflare Browser Run, serves the login image through an authenticated dashboard endpoint and closes the temporary browser on completion, cancellation or expiry.
+- The admin token controls enabled platforms. Each platform has independent SQLite Durable Object state and encrypted credentials, and APIs expose allowlisted fields. A separate extension pairing token can only synchronize NodeSeek credentials; management still requires the panel session and same-origin requests. Public pairing/sync endpoints do not accept the panel Cookie as sync authorization.
 
-域名不能充当密码，禁止搜索引擎收录也不是访问控制。请保护管理密钥、Cloudflare 账户及本地备份；按需使用 Cloudflare Access 提供第二层访问限制。
+The upstream download toolchain in Cloudflare Puppeteer 1.4.0 still has an `extract-zip` audit advisory without a published fix. This project uses remote Browser Run connections, not browser download/extraction APIs or user-uploaded archives. `basic-ftp` has been upgraded to a fixed version. This does not mean all dependency advisories are resolved; review upstream notices when upgrading.
 
-## 不要提交到 GitHub
+A domain name is not a password, and search-indexing directives are not access control. Protect the admin token, Cloudflare account and backups; add Cloudflare Access if another gate is needed.
 
-- `.dev.vars`、真实 Secret、Cloudflare API Token 或 OAuth 配置。
-- 微博 Cookie、`SUB`、`SUBP`、完整请求头、HAR 文件、登录票据或有效二维码。
-- 未脱敏的个人主页截图、关注列表、UID、签到记录、日志与线上数据库。
-- 自己的 `wrangler.local.jsonc`。它已被忽略，用于存放私有域名等部署配置。
+## Keep out of GitHub
 
-提交问题时只描述操作步骤、错误提示、Node / Wrangler 版本，以及你已经做过的排查。截图请遮盖昵称、UID、域名、二维码和凭证；发布前再次核对。测试中的凭证和 ID 均应为虚构数据。
+- `.dev.vars`, real Secrets, Cloudflare API tokens and OAuth configuration.
+- Weibo cookies, `SUB`, `SUBP`, complete request headers, HAR files, login tickets and valid QR codes.
+- Unredacted profiles, followed lists, UIDs, records, logs or hosted databases.
+- Your ignored `wrangler.local.jsonc`, which may contain private deployment domains.
 
-提交前运行 `npm run check:public`，它会检查公开部署配置和已跟踪的私有文件路径；GitHub Actions 也会运行此检查。它不能识别所有敏感文本，仍需人工检查差异和历史。
+For a bug report, provide steps, the error message, Node/Wrangler versions and checks already attempted. Redact nicknames, UIDs, domains, QR codes and credentials from screenshots, then inspect them again before publishing. Tests must use fictional credentials and IDs.
 
-## 怀疑凭证泄漏时
+Run `npm run check:public` before committing; Actions also runs it. It checks public deployment config and tracked private-file paths, but cannot detect every sensitive value. Review the diff and history yourself.
 
-1. 管理密钥泄漏：更换 `ADMIN_TOKEN` 并上传，旧面板会话随即失效。
-2. 微博 Cookie 泄漏：先通过微博官方安全设置处理已登录设备 / 会话，再在面板重新连接；删除 GitHub 文件不能撤销已泄漏的登录凭证。
-3. 加密密钥和密文同时泄漏：按微博凭证泄漏处理；在面板断开账号后更换加密密钥，再重新登录。
-4. Cloudflare Token 泄漏：通过 Cloudflare 撤销对应 Token，核对 Worker、域名及 Secrets 的变更。
+## Suspected credential exposure
 
-不要在公开 Issue 中发布可直接访问账号的漏洞细节或凭证。先检查仓库的 GitHub Security 私密报告入口是否可用；无法私密报告时，不要用公开 Issue 代替传输敏感信息。
+1. **Admin token:** replace/upload `ADMIN_TOKEN`; existing panel sessions become invalid.
+2. **Weibo Cookie:** revoke affected devices/sessions in Weibo's official security settings, then reconnect. Deleting a GitHub file does not revoke a leaked login.
+3. **Encryption key and ciphertext:** treat this as a Weibo/Huya credential leak. Disconnect affected accounts in the panel, replace the key and reconnect.
+4. **Cloudflare token:** revoke it in Cloudflare and review Worker, domain and Secrets changes.
+
+Do not publish exploitable account-access details or credentials in an issue. Check whether this repository offers GitHub's private vulnerability reporting first. If it does not, a public issue is not a substitute for a private channel for sensitive information.
