@@ -10,6 +10,8 @@ const pages = {
   nodeseek: ['NodeSeek', '管理每日签到、Cookie 检测、随机时段与鸡腿记录。'],
   'nodeseek-settings': ['NodeSeek · 签到设置', '设置自动签到、随机时段与领取方式，按需更新凭证。'],
   'nodeseek-sync': ['NodeSeek · 扩展同步', '在本工作台连接浏览器，自动同步 NodeSeek 登录状态。'],
+  huya: ['虎牙 · 免费虎粮', '读取背包中的普通虎粮，全部赠送到指定直播间。'],
+  'huya-settings': ['虎牙 · 账号与设置', '连接虎牙账号，设置接收直播间与每日执行时间。'],
   history: ['签到记录', '按平台与月份查看签到结果。']
 };
 function enter(target, stagger = 0) {
@@ -24,8 +26,8 @@ function showPage(animate = true) {
     const active = link.hash === '#/' + key; link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   });
-  const group = ['topics', 'account'].includes(key) ? 'weibo' : key.startsWith('nodeseek') ? 'nodeseek' : '';
-  for (const name of ['weibo', 'nodeseek']) {
+  const group = ['topics', 'account'].includes(key) ? 'weibo' : key.startsWith('nodeseek') ? 'nodeseek' : key.startsWith('huya') ? 'huya' : '';
+  for (const name of ['weibo', 'nodeseek', 'huya']) {
     $('nav-' + name).classList.toggle('branch-active', name === group);
     if (name === group) toggleNav(name, true, animate);
   }
@@ -34,6 +36,7 @@ function showPage(animate = true) {
   document.title = pages[key][0] + ' · 每日';
   $('platform-home').href = key.startsWith('nodeseek') ? 'https://www.nodeseek.com' : 'https://weibo.com';
   $('platform-home').textContent = key.startsWith('nodeseek') ? '打开 NodeSeek ↗' : '打开微博 ↗';
+  if (key.startsWith('huya')) { $('platform-home').href = 'https://www.huya.com'; $('platform-home').textContent = '打开虎牙 ↗'; }
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
 }
@@ -47,7 +50,7 @@ function toggleNav(name, open, animate = true) {
   if (open) { panel.hidden = false; motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', clearProps: 'height,opacity,overflow' }); }
   else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
 }
-for (const name of ['weibo', 'nodeseek']) $('nav-' + name).addEventListener('click', () => toggleNav(name, $('nav-' + name).getAttribute('aria-expanded') !== 'true'));
+for (const name of ['weibo', 'nodeseek', 'huya']) $('nav-' + name).addEventListener('click', () => toggleNav(name, $('nav-' + name).getAttribute('aria-expanded') !== 'true'));
 function navigate(hash) {
   const key = hash.replace(/^#\/?/, '');
   if (!Object.hasOwn(pages, key)) return;
@@ -117,6 +120,7 @@ async function action(button, operation) {
   finally { busy.delete(button.id); button.disabled = false; if (state && !$('dashboard').hidden) syncControls(); }
 }
 function syncControls() {
+  if (typeof syncHuyaControls === 'function') syncHuyaControls();
   const running = state.job?.status === 'running';
   $('run').disabled = running || state.login !== 'valid' || !state.topics.length;
   for (const id of ['create-qr', 'validate', 'disconnect']) $(id).disabled = running;

@@ -1,7 +1,8 @@
 let recentDate = '', recentRecords = [], recentMonths = new Set(), recentErrors = false, recentPending, recentChartKey = '';
-function recentSeries(daily, records) {
+function recentSeries(daily, records, huya = []) {
   const signed = new Set(records.filter(entry => entry.ok).map(entry => entry.date));
-  return daily.map(day => ({ date: day.date, weibo: day.count, nodeseek: signed.has(day.date) ? 1 : 0 }));
+  const gifted = new Set(huya.filter(entry => entry.code === 'SUCCESS').map(entry => entry.day));
+  return daily.map(day => ({ date: day.date, weibo: day.count, nodeseek: signed.has(day.date) ? 1 : 0, huya: gifted.has(day.date) ? 1 : 0 }));
 }
 function resetOverview() {
   recentDate = ''; recentRecords = []; recentMonths = new Set(); recentErrors = false; recentPending = undefined; recentChartKey = '';
@@ -30,29 +31,32 @@ function renderRecentStats() {
   if (!state || $('stats-recent').hidden) return;
   const daily = state.recentCompletions || [], months = new Set(daily.map(day => day.date.slice(0, 7)));
   const loaded = recentDate === state.today;
-  const pending = !platformRegistry.length || daily.length !== 7 || (nsAvailable() && (!loaded || !!recentPending));
-  const partial = nsAvailable() && loaded && recentErrors;
-  const series = recentSeries(daily, loaded ? recentRecords : []);
-  const total = series.reduce((n, day) => n + day.weibo + day.nodeseek, 0);
+  const huyaAvailable = platformRegistry.some(p => p.id === 'huya' && p.available);
+  const huyaLoaded = typeof hySnapshot !== 'undefined' && !!hySnapshot && hySnapshot.date === state.today;
+  const huyaFailed = typeof hyError !== 'undefined' && !!hyError;
+  const pending = !platformRegistry.length || daily.length !== 7 || (nsAvailable() && (!loaded || !!recentPending)) || (huyaAvailable && !huyaLoaded && !huyaFailed);
+  const partial = (nsAvailable() && loaded && recentErrors) || (huyaAvailable && huyaFailed);
+  const series = recentSeries(daily, loaded ? recentRecords : [], huyaLoaded && !huyaFailed ? hySnapshot.history : []);
+  const total = series.reduce((n, day) => n + day.weibo + day.nodeseek + day.huya, 0);
   $('recent-total').textContent = daily.length === 7 ? String(total) : '—';
   $('recent-badge').textContent = pending ? '读取中' : partial ? '部分数据' : '含今天';
   $('recent-retry').hidden = !partial || pending;
   const range = daily.length ? `${daily[0].date.slice(5).replace('-', '/')}–${state.today.slice(5).replace('-', '/')}` : '';
-  $('recent-note').textContent = pending ? '正在读取记录，当前数量仅含已确认项目。' : partial ? '部分 NodeSeek 记录未读到，显示已确认数量。' : `${range} · 每日同一项目只计一次。`;
+  $('recent-note').textContent = pending ? '正在读取记录，当前数量仅含已确认项目。' : partial ? '部分平台记录未读到，显示已确认数量。' : `${range} · 每日同一项目只计一次。虎牙计赠送完成天数。`;
   const key = JSON.stringify([series, pending, partial, [...months].map(month => recentMonths.has(month))]);
   if (key === recentChartKey) return;
   recentChartKey = key;
   if (motion) motion.killTweensOf(document.querySelectorAll('.recent-stack'));
   $('recent-bars').replaceChildren();
-  const max = Math.max(1, ...series.map(day => day.weibo + day.nodeseek));
+  const max = Math.max(1, ...series.map(day => day.weibo + day.nodeseek + day.huya));
   for (const day of series) {
-    const count = day.weibo + day.nodeseek, column = node('div', undefined, 'recent-column' + (day.date === state.today ? ' today' : '') + (!count ? ' is-empty' : ''));
+    const count = day.weibo + day.nodeseek + day.huya, column = node('div', undefined, 'recent-column' + (day.date === state.today ? ' today' : '') + (!count ? ' is-empty' : ''));
     column.setAttribute('role', 'listitem');
     const unknown = pending || (partial && !recentMonths.has(day.date.slice(0, 7)));
-    column.setAttribute('aria-label', `${day.date}，微博 ${day.weibo} 项，NodeSeek ${unknown ? '待确认' : day.nodeseek + ' 项'}，已确认共 ${count} 项`);
+    column.setAttribute('aria-label', `${day.date}，微博 ${day.weibo} 项，NodeSeek ${unknown ? '待确认' : day.nodeseek + ' 项'}，虎牙 ${huyaAvailable && (!huyaLoaded || huyaFailed) ? '待确认' : day.huya + ' 项'}，已确认共 ${count} 项`);
     column.title = column.getAttribute('aria-label');
     const track = node('div', undefined, 'recent-track'), stack = node('div', undefined, 'recent-stack');
-    for (const [value, cls] of [[day.weibo, ''], [day.nodeseek, ' ns']]) {
+    for (const [value, cls] of [[day.weibo, ''], [day.nodeseek, ' ns'], [day.huya, ' hy']]) {
       const segment = node('span', undefined, 'recent-segment' + cls); segment.style.height = `${value / max * 86}px`; stack.append(segment);
     }
     const value = node('span', String(count), 'recent-value'); value.style.bottom = `${count / max * 86 + 7}px`;
@@ -82,4 +86,4 @@ async function loadRecentStats(force = false) {
   try { await pending; }
   finally { if (recentPending?.promise === pending) recentPending = undefined; if (epoch === platformEpoch) renderRecentStats(); }
 }
-$('recent-retry').addEventListener('click', () => loadRecentStats(true).catch(() => {}));
+$('recent-retry').addEventListener('click', () => { if (typeof refreshHuya === 'function') refreshHuya().then(renderRecentStats).catch(() => {}); loadRecentStats(true).catch(() => {}); });

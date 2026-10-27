@@ -9,6 +9,7 @@ export interface Env {
   ENCRYPTION_KEY: string;
   NOTIFY_WEBHOOK_URL?: string;
   NODESEEK?: DurableObjectNamespace;
+  HUYA?: DurableObjectNamespace;
   NODESEEK_CREDENTIAL_KEY?: string;
   NODESEEK_LEGACY_STATE?: KVNamespace;
   BROWSER?: Fetcher;

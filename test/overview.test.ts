@@ -24,7 +24,7 @@ test('recent chart counts distinct successful NodeSeek days, including zero rewa
     {date:'2027-01-01',ok:true,gain:0},{date:'2027-01-01',ok:true,gain:0},
     {date:'2027-01-02',ok:false},{date:'2027-01-03',ok:true}])`);
   assert.deepEqual(JSON.parse(JSON.stringify(result)), [
-    {date:'2027-01-01',weibo:2,nodeseek:1},{date:'2027-01-02',weibo:0,nodeseek:0}
+    {date:'2027-01-01',weibo:2,nodeseek:1,huya:0},{date:'2027-01-02',weibo:0,nodeseek:0,huya:0}
   ]);
 });
 test('recent chart loads both months independently from history filters, caches reads and refreshes on request', async () => {
@@ -36,6 +36,13 @@ test('recent chart loads both months independently from history filters, caches 
   assert.equal($('recent-badge').textContent,'含今天');
   await run('loadRecentStats()'); assert.equal(calls.length,2);
   await run('loadRecentStats(true)'); assert.equal(calls.length,4);
+});
+test('recent chart counts confirmed Huya deliveries by day, excluding empty, uncertain and repeated entries', () => {
+  const { run } = setup(() => {});
+  const result = run(`recentSeries([{date:'2027-01-01',count:0},{date:'2027-01-02',count:0}], [], [
+    {day:'2027-01-01',code:'SUCCESS',count:35},{day:'2027-01-01',code:'SUCCESS',count:35},
+    {day:'2027-01-02',code:'EMPTY'},{day:'2027-01-02',code:'REVIEW'}])`);
+  assert.deepEqual(JSON.parse(JSON.stringify(result)).map(x => x.huya), [1, 0]);
 });
 test('one unavailable month is marked partial rather than zero, and retry recovers the complete count', async () => {
   let fail = true;
