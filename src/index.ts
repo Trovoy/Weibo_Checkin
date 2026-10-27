@@ -3,6 +3,7 @@ import { sameSecret, session, validSession, unbase64 } from './crypto.ts';
 import { platformRoute, extensionRoute } from './platforms.ts';
 export { WeiboAccount };
 export { NodeSeekAccount } from './nodeseek/account.ts';
+export { HuyaAccount } from './huya/account.ts';
 
 function secure(response: Response) {
   const result = new Response(response.body, response);
@@ -78,6 +79,10 @@ export default {
   },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (!configured(env)) return;
+    if (_event.cron === '* * * * *' && env.HUYA) {
+      const stub = env.HUYA.get(env.HUYA.idFromName('personal-huya'));
+      ctx.waitUntil((async () => { const response = await stub.fetch('https://huya/tick', { method: 'POST' }); if (!response.ok) throw new Error('Huya scheduled task failed'); })());
+    }
     if (_event.cron === '0 1 * * *') {
       const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
       ctx.waitUntil((async () => { const response = await stub.fetch('https://account/internal/cron', { method: 'POST' }); if (!response.ok) throw new Error('Scheduled check-in could not start'); })());

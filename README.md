@@ -2,13 +2,14 @@
 
 # Daily Check-in Workbench
 
-A self-hosted, single-user dashboard for **Weibo Super Topics and NodeSeek**, built with Cloudflare Workers and SQLite Durable Objects. Both platforms share one Worker and interface while keeping credentials, storage and execution isolated.
+A self-hosted, single-user dashboard for **Weibo Super Topics, NodeSeek and Huya**, built with Cloudflare Workers and SQLite Durable Objects. All platforms share one Worker and interface while keeping credentials, storage and execution isolated.
 
 [Deployment guide](docs/DEPLOY.md) · [NodeSeek, migration and platforms](docs/PLATFORMS.md) · [Privacy and reporting](SECURITY.md)
 
 ## What it does
 
 - **Weibo:** QR-code sign-in, followed Super Topics and personal levels, topic search, up to 30 configured topics, manual runs and daily scheduling.
+- **Huya:** official-app QR sign-in, encrypted Cookie capture, all available ordinary backpack tiger food sent to one configured room, daily scheduling and verified receipts. See the [Huya guide](docs/HUYA.md).
 - **NodeSeek:** Cookie checks, a stable daily time within a selected random window, a 14:00 catch-up check, reward records and bounded ledger reconciliation.
 - **One dashboard:** grouped platform navigation, an all-platform log, today's completion ring and a seven-day stacked chart. Counts use UTC+8 and count each confirmed daily item once; unknown data stays unknown.
 - **Browser extension:** pair Chrome/Edge with your own dashboard to synchronize NodeSeek cookies. Its token can synchronize credentials only; management still requires a dashboard session.
@@ -19,7 +20,7 @@ This is the rewrite of the 2023 Python script. The old script remains in `legacy
 
 ## Deploy your own instance
 
-You need Git, **Node.js 24+ with npm**, and a Cloudflare account with Workers enabled. NodeSeek additionally requires access to **Cloudflare Browser Run**. Check Cloudflare's current [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) and Browser Run allowances before enabling scheduled use. A domain or always-on server is not required.
+You need Git, **Node.js 24+ with npm**, and a Cloudflare account with Workers enabled. NodeSeek and Huya QR sign-in additionally require access to **Cloudflare Browser Run**. Check Cloudflare's current [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) and Browser Run allowances before enabling scheduled use. A domain or always-on server is not required.
 
 Follow the [full deployment guide](docs/DEPLOY.md) for Windows instructions, custom domains, upgrades and troubleshooting.
 
@@ -59,7 +60,7 @@ Use the NodeSeek settings to save a Cookie and the User-Agent used to obtain it,
 | Secret | Purpose |
 | --- | --- |
 | `ADMIN_TOKEN` | Random dashboard password, at least 32 characters. Changing it invalidates existing dashboard sessions. |
-| `ENCRYPTION_KEY` | Base64-encoded 32 random bytes for Weibo Cookie and QR-state encryption. Back it up. |
+| `ENCRYPTION_KEY` | Base64-encoded 32 random bytes for Weibo/Huya Cookie and QR-state encryption. Back it up. |
 | `NODESEEK_CREDENTIAL_KEY` | Separate NodeSeek credential key, at least 32 characters. Preserve the old `CREDENTIAL_KEY` value during migration. |
 | `NOTIFY_WEBHOOK_URL` | Optional HTTPS endpoint receiving JSON `{ "title": "…", "content": "…" }` failure summaries, without cookies. |
 
@@ -67,7 +68,7 @@ Update one secret with `npx wrangler secret put NAME`, or upload the supported l
 
 The login page is public; account information, avatars, followed topics, levels, records and operations require a management session. Sessions are host-only, Secure, HttpOnly and SameSite=Strict, expire after 12 hours, and writes validate the full Origin. Production requires HTTPS. Responses disable caching, embedding and search indexing; indexing directives do not replace authentication. External analytics, fonts and scripts are not loaded.
 
-Weibo cookies and temporary QR state use AES-256-GCM. Other account data, configuration and logs are hosted by Cloudflare. A Cloudflare administrator controlling the Worker and its keys can read the data: this is **not end-to-end encryption**. You can place Cloudflare Access in front of the dashboard if needed. Disconnect the affected account before replacing its encryption key, then reconnect.
+Weibo/Huya cookies and temporary QR state use AES-256-GCM. Other account data, configuration and logs are hosted by Cloudflare. A Cloudflare administrator controlling the Worker and its keys can read the data: this is **not end-to-end encryption**. You can place Cloudflare Access in front of the dashboard if needed. Disconnect the affected account before replacing its encryption key, then reconnect.
 
 ## Develop and validate
 
@@ -86,6 +87,7 @@ Local development can make real upstream requests. Tests use simulated networks;
 | Path | Contents |
 | --- | --- |
 | `src/` | Shared Worker, Weibo account engine and platform registry |
+| `src/huya/` | Huya QR sessions, bounded protocol codec and isolated gifting state |
 | `src/nodeseek/` | NodeSeek engine and isolated account state |
 | `public/` | Dashboard and locally served frontend dependencies |
 | `extension/` | NodeSeek browser synchronization extension |

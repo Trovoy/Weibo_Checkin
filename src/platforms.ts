@@ -110,7 +110,15 @@ export const platforms: PlatformAdapter[] = [
       if (!((action === 'status' && request.method === 'GET') || (action === 'run' && request.method === 'POST'))) return json({ error: '不支持的平台操作' }, 404);
       return env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account')).fetch(new Request('https://account/api/' + action, { method: request.method, headers: { 'Content-Type': 'application/json' }, body: request.method === 'POST' ? '{}' : undefined }));
     } },
-  { id: 'nodeseek', name: 'NodeSeek', description: '每日签到、鸡腿与随机时段', page: 'nodeseek', available, handle: nodeSeek }
+  { id: 'nodeseek', name: 'NodeSeek', description: '每日签到、鸡腿与随机时段', page: 'nodeseek', available, handle: nodeSeek },
+  { id: 'huya', name: '虎牙', description: '将免费背包虎粮赠送至指定直播间', page: 'huya', available: env => !!env.HUYA,
+    handle: async (request, action, env) => {
+      if (!env.HUYA) return json({ error: '请先绑定虎牙原生存储' }, 409);
+      if (!((request.method === 'GET' && ['status', 'qrimage'].includes(action)) || (request.method === 'POST' && ['config', 'probe', 'run', 'disconnect', 'reconcile', 'qrstart', 'qrpoll', 'qrcancel'].includes(action)))) return json({ error: '操作不存在' }, 404);
+      return env.HUYA.get(env.HUYA.idFromName('personal-huya')).fetch('https://huya/' + action, {
+        method: request.method, headers: { 'Content-Type': 'application/json' }, body: request.method === 'POST' ? await request.text() : undefined
+      });
+    } }
 ];
 export async function platformRoute(request: Request, env: Env) {
   const path = new URL(request.url).pathname;

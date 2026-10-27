@@ -2,7 +2,10 @@
 
 # 原生 NodeSeek 与平台扩展
 
-微博与 NodeSeek 的执行代码、管理界面、浏览器同步和调度都在本仓库、同一个 Worker 中。每个平台使用自己的 SQLite Durable Object 保存状态并串行执行操作，不依赖另一个签到面板或 Service Binding。
+微博、NodeSeek 与虎牙的执行代码、管理界面、浏览器同步和调度都在本仓库、同一个 Worker 中。每个平台使用自己的 SQLite Durable Object 保存状态并串行执行操作，不依赖另一个签到面板或 Service Binding。
+
+
+虎牙支持扫码获取 Cookie、仅背包赠送和独立每日计划，见 [虎粮赠送教程](HUYA.zh-CN.md)。
 
 ## NodeSeek 首次使用
 

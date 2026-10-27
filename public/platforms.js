@@ -8,6 +8,7 @@ function resetPlatforms() {
   progressKey = ''; if (motion) motion.killTweensOf($('progress-ring'));
   $('progress-ring').setAttribute('stroke-dashoffset', '100');
   if (typeof resetOverview === 'function') resetOverview();
+  if (typeof resetHuya === 'function') resetHuya();
   for (const id of ['ns-cookie', 'ns-ua']) $(id).value = '';
   for (const id of ['platform-list', 'history-body', 'ns-history-body']) $(id).replaceChildren();
 }
@@ -29,6 +30,9 @@ function renderPlatformCards() {
     } else if (platform.id === 'nodeseek' && platform.available) {
       status = nsError ? '暂时无法读取' : !nsSnapshot ? '读取中…' : nsSnapshot.record?.ok ? '今日已签到' : nsSnapshot.record ? '今日未完成' : '等待签到';
       detail = nsError || (nsSnapshot?.record?.ok ? `今日鸡腿 ${nsSnapshot.record.gain ?? '未提供'} · ${nsHealthLabels[nsSnapshot.config.cookieHealth.status] || '待确认'}` : '随机时段签到 · 14:00 检查补签');
+    } else if (platform.id === 'huya' && platform.available && typeof hySnapshot !== 'undefined') {
+      status = hyError ? '状态待确认' : hySnapshot?.record?.code === 'SUCCESS' ? '今日已赠送' : hySnapshot?.paused ? '已暂停 · 待核对' : hySnapshot?.configured ? '等待赠送' : '未连接账号';
+      detail = hyError || (hySnapshot?.room ? `${hySnapshot.room.name} · ${hySnapshot.room.id} · ${hySnapshot.record?.code === 'SUCCESS' ? hySnapshot.record.count + ' 个免费虎粮' : '免费背包虎粮'}` : platform.description);
     }
     card.append(node('p', status, 'platform-status'), node('p', detail, 'fine'));
     const link = node('a', '管理 ' + platform.name + ' ↗', 'inline-link'); link.href = '#/' + platform.page; card.append(link); $('platform-list').append(card);
@@ -40,6 +44,11 @@ function renderOverviewProgress() {
   let pending = !platformRegistry.length;
   for (const platform of platformRegistry) {
     if (!platform.available || platform.id === 'weibo') continue;
+    if (platform.id === 'huya') {
+      if (typeof hySnapshot === 'undefined' || !hySnapshot || hyError || hySnapshot.date !== state.today) { pending = true; continue; }
+      if (hySnapshot.configured || hySnapshot.record) { total++; if (hySnapshot.record?.code === 'SUCCESS') done++; }
+      continue;
+    }
     if (platform.id !== 'nodeseek' || nsError || !nsSnapshot || nsSnapshot.date !== state.today) { pending = true; continue; }
     if (nsSnapshot.config.configured || nsSnapshot.record) {
       total++;
@@ -52,7 +61,7 @@ function renderOverviewProgress() {
   $('progress-badge').textContent = pending ? '待确认' : !total ? '待配置' : complete ? '全部完成' : `还有 ${total - done} 项`;
   $('progress-badge').className = 'badge' + (complete ? '' : ' neutral');
   $('progress-count').textContent = pending ? `已确认 ${done} / ${total} 项` : total ? `${done} / ${total} 项已完成` : '添加签到项目后查看进度';
-  $('progress-note').textContent = pending ? '部分平台状态尚未确认，暂不计算总完成率。' : '微博每个超话计 1 项，NodeSeek 每日计 1 项。';
+  $('progress-note').textContent = pending ? '部分平台状态尚未确认，暂不计算总完成率。' : '微博每个超话计 1 项；NodeSeek 签到、虎牙成功赠送各计 1 项。';
   $('progress-chart').setAttribute('aria-label', pending ? `已确认完成 ${done} 项，部分平台状态待确认` : total ? `今日共 ${total} 项签到，已完成 ${done} 项，完成率 ${percent}%` : '尚未配置签到项目');
   const key = `${state.today}:${pending}:${done}:${total}`;
   if (key === progressKey) return;
@@ -101,22 +110,26 @@ function renderNSRecords() {
 function renderPlatformHistory() {
   if (!state) return;
   const month = chosenMonth(), filter = $('history-platform').value, rows = [];
-  if (filter !== 'nodeseek') for (const entry of state.history) {
+  if (['all', 'weibo'].includes(filter)) for (const entry of state.history) {
     if (new Date(Date.parse(entry.at) + 8 * 3600000).toISOString().slice(0, 7) !== month) continue;
     rows.push({ platform: '微博 / ' + entry.topic.name, at: entry.at, label: time(entry.at), ok: entry.result !== 'failed',
       result: { success: '签到成功', already: '今日已签', failed: '未完成' }[entry.result], message: entry.message });
   }
-  if (filter !== 'weibo' && nsLoadedMonth === month) for (const entry of nsRecords) {
+  if (['all', 'nodeseek'].includes(filter) && nsLoadedMonth === month) for (const entry of nsRecords) {
     const at = entry.ledgerAt || entry.claimedAt || entry.checkedAt;
     rows.push({ platform: 'NodeSeek', at: at || entry.date, label: at ? time(at) : entry.date, ok: entry.ok,
       result: entry.ok ? '已签到' : '未完成', message: `${entry.message}${entry.ok ? ' · 鸡腿 ' + (entry.gain ?? '未知') : ''}` });
+  }
+  if (['all', 'huya'].includes(filter) && typeof hySnapshot !== 'undefined') for (const entry of hySnapshot?.history || []) {
+    if (entry.day.slice(0, 7) !== month) continue;
+    rows.push({ platform: '虎牙 / ' + entry.room.name, at: entry.at, label: time(entry.at), ok: entry.code === 'SUCCESS', result: hyLabels[entry.code], message: entry.message + (entry.code === 'SUCCESS' ? ` · ${entry.count} 个` : '') });
   }
   rows.sort((a, b) => b.at.localeCompare(a.at)); $('history-body').replaceChildren(); $('empty-history').hidden = rows.length > 0;
   for (const entry of rows) {
     const tr = node('tr'), result = node('td'); result.append(node('span', entry.result, 'badge ' + (entry.ok ? 'success' : 'failed')));
     tr.append(node('td', entry.platform), node('td', entry.label), result, node('td', entry.message)); $('history-body').append(tr);
   }
-  $('history-feedback').textContent = nsHistoryError && filter !== 'weibo' ? 'NodeSeek：' + nsHistoryError : '';
+  $('history-feedback').textContent = [nsHistoryError && ['all', 'nodeseek'].includes(filter) ? 'NodeSeek：' + nsHistoryError : '', typeof hyError !== 'undefined' && hyError && ['all', 'huya'].includes(filter) ? '虎牙：' + hyError : ''].filter(Boolean).join('；');
 }
 async function loadPlatformHistory(force = false) {
   if (!nsAvailable()) { renderNodeSeek(); renderPlatformHistory(); return; }
@@ -144,7 +157,9 @@ async function refreshPlatforms(forceHistory = false) {
       if (nsAvailable()) { try { const data = await api('platforms/nodeseek/status'); if (epoch !== platformEpoch) return; nsSnapshot = data; nsError = ''; }
         catch (error) { if (epoch !== platformEpoch) return; nsError = error.message; } }
       else { nsSnapshot = undefined; nsRecords = []; nsLoadedMonth = ''; nsFormsReady = false; nsError = ''; nsHistoryError = ''; }
-      renderPlatformCards(); renderNodeSeek();
+      if (typeof refreshHuya === 'function') await refreshHuya(epoch);
+      if (epoch !== platformEpoch) return;
+      renderPlatformCards(); renderNodeSeek(); renderPlatformHistory();
       if (typeof loadRecentStats === 'function' && !$('stats-recent').hidden) await loadRecentStats(true);
       if (['#/nodeseek', '#/history'].includes(location.hash)) await loadPlatformHistory(forceHistory);
     } catch (error) { if (epoch === platformEpoch) { nsError = error.message; renderPlatformCards(); renderNodeSeek(); } }

@@ -2,12 +2,12 @@
 
 # Deploy to Cloudflare
 
-This guide creates **your own single-user check-in dashboard**. The repository provides code, not a shared hosted panel. Weibo and NodeSeek run in the same Worker, each with independent storage. For NodeSeek setup and migration, use the [platform guide](PLATFORMS.md).
+This guide creates **your own single-user check-in dashboard**. The repository provides code, not a shared hosted panel. Weibo, NodeSeek and Huya run in the same Worker, each with independent storage. For NodeSeek setup and migration, use the [platform guide](PLATFORMS.md); Huya setup is covered in the [gifting guide](HUYA.md).
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 24+ with npm, and [Git](https://git-scm.com/).
-- A [Cloudflare account](https://dash.cloudflare.com/) with Workers enabled and a `workers.dev` subdomain. NodeSeek requires Browser Run access under its current quotas and pricing.
+- A [Cloudflare account](https://dash.cloudflare.com/) with Workers enabled and a `workers.dev` subdomain. NodeSeek and Huya QR sign-in require Browser Run access under its current quotas and pricing.
 - The Weibo mobile app to confirm QR sign-in; the project does not need your account password.
 - Optionally fork this repository first. Forking does not deploy a service or copy the author's hosted data.
 
@@ -41,8 +41,8 @@ Use your fork's URL if applicable. A downloaded ZIP also works: extract it and e
 | `workers_dev` | `true`: enable the Cloudflare-provided hostname. |
 | `preview_urls` | `false`: disable version preview URLs. |
 | `durable_objects`, `migrations` | Wrangler provisions account/state storage. Preserve these bindings and migrations. |
-| `triggers.crons` | `0 1 * * *` triggers Weibo; `* * * * *` checks due NodeSeek plans. |
-| `browser` | Cloudflare Browser Run binding for NodeSeek. |
+| `triggers.crons` | `0 1 * * *` triggers Weibo; `* * * * *` checks due NodeSeek and Huya plans. |
+| `browser` | Cloudflare Browser Run binding for NodeSeek execution and Huya QR sign-in. |
 
 No manual database, KV, R2 or GitHub Actions deployment token is needed for a new installation. Repository Actions validate code; they do not deploy your Cloudflare Worker.
 
@@ -59,7 +59,7 @@ Keep this order: generate local secrets, create the Worker, then upload secrets.
 The generator writes local `.dev.vars`, preserves an existing file and does not print secrets. Open it with a text editor:
 
 - `ADMIN_TOKEN`: dashboard password; paste only the value after `=` into the unlock form.
-- `ENCRYPTION_KEY`: Weibo Cookie encryption key; never use it as the dashboard password.
+- `ENCRYPTION_KEY`: Weibo/Huya Cookie encryption key; never use it as the dashboard password.
 - `NODESEEK_CREDENTIAL_KEY`: separate NodeSeek encryption key and stable random-plan seed. When migrating, preserve the old `CREDENTIAL_KEY` instead of generating a replacement.
 
 Back up `.dev.vars` privately, such as in a password manager. It is ignored by Git. Never upload it to an issue or share it. Values in `.dev.vars.example` are placeholders.
@@ -129,11 +129,11 @@ npm run deploy
 
 For custom-domain installations, use `npm run deploy:local` last. Compare the new public config with your private local copy and incorporate required changes. Back up and inspect local changes if Git refuses a fast-forward update.
 
-Normal updates to the same Worker retain Durable Object data and uploaded secrets. Preserve existing migrations and add the NodeSeek `v2` migration, `NODESEEK` / `BROWSER` bindings and minute cron when upgrading from an older Weibo-only deployment. Do not delete the Worker, replace binding identities or regenerate encryption keys. A new Worker/account is a migration, not an automatic copy of old data.
+Normal updates to the same Worker retain Durable Object data and uploaded secrets. Preserve existing migrations and add the NodeSeek `v2` and Huya `v3` migrations, `NODESEEK` / `HUYA` / `BROWSER` bindings and minute cron when upgrading from an older Weibo-only deployment. Do not delete the Worker, replace binding identities or regenerate encryption keys. A new Worker/account is a migration, not an automatic copy of old data.
 
 Back up `.dev.vars`, any `wrangler.local.jsonc`, and an independent list of your configured topics. The last 200 log entries are not a database backup. Git and source ZIPs do not contain hosted cookies, databases or secrets. Credentials cannot currently be exported; deleting data or losing the encryption key requires reconnecting and reconfiguring.
 
-Changing `ADMIN_TOKEN` invalidates dashboard sessions. Before replacing `ENCRYPTION_KEY`, disconnect Weibo in the dashboard, update the key, then sign in again.
+Changing `ADMIN_TOKEN` invalidates dashboard sessions. Before replacing `ENCRYPTION_KEY`, disconnect Weibo and Huya in the dashboard, update the key, then sign in again.
 
 ## Troubleshooting
 

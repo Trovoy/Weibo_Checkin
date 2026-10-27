@@ -2,7 +2,9 @@
 
 # NodeSeek and platform integration
 
-Weibo and NodeSeek share this repository, Worker, management UI and scheduler. Each platform owns a separate SQLite Durable Object and serializes manual and scheduled operations through the same instance. No second dashboard or Service Binding is required.
+Weibo, NodeSeek and Huya share this repository, Worker, management UI and scheduler. Each platform owns a separate SQLite Durable Object and serializes manual and scheduled operations through the same instance. No second dashboard or Service Binding is required.
+
+Huya has its own grouped pages, encrypted QR sessions, backpack-only gifting and daily schedule. See the [Huya guide](HUYA.md).
 
 ## Start using NodeSeek
 

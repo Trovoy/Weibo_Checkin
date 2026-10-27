@@ -8,8 +8,8 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
-  "durable_objects": { "bindings": [{ "name": "ACCOUNT", "class_name": "WeiboAccount" }, { "name": "NODESEEK", "class_name": "NodeSeekAccount" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeiboAccount"] }, { "tag": "v2", "new_sqlite_classes": ["NodeSeekAccount"] }],
+  "durable_objects": { "bindings": [{ "name": "ACCOUNT", "class_name": "WeiboAccount" }, { "name": "NODESEEK", "class_name": "NodeSeekAccount" }, { "name": "HUYA", "class_name": "HuyaAccount" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeiboAccount"] }, { "tag": "v2", "new_sqlite_classes": ["NodeSeekAccount"] }, { "tag": "v3", "new_sqlite_classes": ["HuyaAccount"] }],
   // Cron 使用 UTC：01:00 对应台北 / 上海 09:00。
   "triggers": { "crons": ["0 1 * * *", "* * * * *"] },
   "observability": { "enabled": false }
