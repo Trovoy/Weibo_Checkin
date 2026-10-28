@@ -1,10 +1,15 @@
 .overview-insights {
-  --ins-bg: #19191d; --ins-soft: #1e1e23; --ins-ink: #eeedf2; --ins-muted: #aaa9b2;
-  --ins-line: #303036; --ins-track: #34333d; --ins-wb: #a6a7ff; --ins-ns: #a0aec6;
-  --ins-hy: #c5a78c; --ins-main: var(--ins-wb); --ins-select: #303039;
-  color-scheme: dark; container-type: inline-size; color: var(--ins-ink); background: var(--ins-bg);
+  /* Share the page's surfaces and text; use stronger series colors on light surfaces. */
+  --ins-bg: var(--paper); --ins-soft: var(--surface); --ins-ink: var(--ink); --ins-muted: var(--muted);
+  --ins-line: var(--line); --ins-track: var(--line); --ins-wb: #5b5bd6; --ins-ns: #7d8da6;
+  --ins-hy: #a08068; --ins-main: var(--ins-wb); --ins-select: var(--surface-hover);
+  color-scheme: inherit; container-type: inline-size; color: var(--ins-ink); background: var(--ins-bg);
   border: 1px solid var(--ins-line); border-radius: 16px; margin-bottom: 16px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+:root[data-theme="dark"] .overview-insights {
+  --ins-wb: #a6a7ff; --ins-ns: #a0aec6; --ins-hy: #c5a78c;
+  --ins-line: #303036; --ins-track: #34333d; --ins-select: #303039;
 }
 .overview-insights h3, .overview-insights p { margin: 0; }
 .overview-insights .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light"><meta name="description" content="个人多平台签到工作台">
+  <meta name="color-scheme" content="light dark"><meta name="description" content="个人多平台签到工作台">
+  <meta name="theme-color" content="#fafafa">
+  <script src="/theme.js"></script>
   <title>每日 · 签到工作台</title><link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/overview.css">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
@@ -11,7 +13,6 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#18181b">
   <meta name="apple-mobile-web-app-title" content="每日签到">
-  <meta name="theme-color" content="#fafafa">
   <script src="/vendor/gsap.min.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/overview-data.js" defer></script>
@@ -55,7 +56,7 @@
       </div>
     </aside>
     <main>
-      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><a id="platform-home" href="https://weibo.com" target="_blank" rel="noreferrer">打开微博<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-external"/></svg></a></header>
+      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><div class="header-actions"><select id="appearance" aria-label="外观模式"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select><a id="platform-home" href="https://weibo.com" target="_blank" rel="noreferrer">打开微博<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-external"/></svg></a></div></header>
       <section id="unlock" class="unlock card" hidden>
         <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
         <p class="muted">使用你的管理密钥进入个人控制台。</p>
