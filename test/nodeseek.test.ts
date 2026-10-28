@@ -88,15 +88,15 @@ test('uncertain network calls are not retried, and keyed daily plans remain stab
   const result = await checkIn(env, { fetch: async () => { posts++; throw new Error('network'); }, sleep: async () => {} });
   assert.equal(result.code, 'NETWORK'); assert.equal(posts, 1);
   const plan = await dailyPlan(env, '2026-10-27'); assert.deepEqual(plan, await dailyPlan(env, '2026-10-27'));
-  assert.ok(plan.primaryAt >= '2026-10-27T01:00:00.000Z' && plan.primaryAt < '2026-10-27T04:00:00.000Z');
+  assert.ok(plan.primaryAt >= '2026-10-27T00:00:00.000Z' && plan.primaryAt < '2026-10-27T04:00:00.000Z');
 });
-test('shared worker dispatches minute ticks only to NodeSeek and the daily trigger only to Weibo', async () => {
+test('shared worker dispatches minute ticks to both Weibo and NodeSeek while accepting the legacy daily trigger', async () => {
   const calls = [], pending = [];
   const namespace = name => ({ idFromName: () => 'one', get: () => ({ fetch: async () => { calls.push(name); return Response.json({}); } }) });
   const env = { ADMIN_TOKEN: 'a'.repeat(40), ENCRYPTION_KEY: btoa('k'.repeat(32)), NODESEEK_CREDENTIAL_KEY: 'n'.repeat(40), ACCOUNT: namespace('weibo'), NODESEEK: namespace('nodeseek') };
   const ctx = { waitUntil: p => pending.push(p) };
   await worker.scheduled({ cron: '* * * * *' } as any, env as any, ctx as any); await Promise.all(pending);
-  assert.deepEqual(calls, ['nodeseek']);
+  assert.deepEqual(calls, ['weibo', 'nodeseek']);
   await worker.scheduled({ cron: '0 1 * * *' } as any, env as any, ctx as any); await Promise.all(pending);
-  assert.deepEqual(calls, ['nodeseek', 'weibo']);
+  assert.deepEqual(calls, ['weibo', 'nodeseek', 'weibo']);
 });

@@ -1,3 +1,4 @@
+import { MORNING, validMorning, firstAt, planFor, claimAttempt, scheduleView } from '../schedule.ts';
 // Native NodeSeek engine, maintained in this repository. No legacy panel or external Worker dependency.
 const ORIGIN = 'https://www.nodeseek.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
@@ -309,7 +310,7 @@ async function execute(env, source, dependencies) {
   let ledgerEntry = null, ledgerStatus = 'not_needed';
   if (!outcome) {
     const perform = async deps => {
-      if (previous && ['NETWORK', 'UPSTREAM'].includes(previous.code)) {
+      if (previous && ['NETWORK', 'UPSTREAM', 'RESPONSE', 'BROWSER', 'BROWSER_LIMIT'].includes(previous.code)) {
         const ledger = await readLedger(account, 1, deps);
         ledgerEntry = uniqueDay(ledger.records, date);
         if (ledger.code !== 'SUCCESS' || (!ledgerEntry && ledger.partial)) outcome = result('NETWORK', false, false, { attempts: 0 });
@@ -482,74 +483,53 @@ const HEALTH_KEY = 'cookie-health:v1';
 const SCHEDULE_KEY = 'schedule-settings:v1';
 const credentialChecks = new WeakMap();
 const scheduleTicks = new WeakMap();
-const DEFAULT_WINDOW = { start: '09:00', end: '12:00' };
-const RETRY_MINUTE = 14 * 60;
+const DEFAULT_WINDOW = MORNING;
 const CRONS = ['* * * * *'];
-function minuteOfDay(value) {
-  if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
-  const [hour, minute] = value.split(':').map(Number);
-  return hour * 60 + minute;
-}
-function validWindow(window) {
-  const start = minuteOfDay(window?.start), end = minuteOfDay(window?.end);
-  return start !== null && end !== null && end - start >= 5 && end <= RETRY_MINUTE;
-}
+const retryable = code => ['NETWORK', 'UPSTREAM', 'RATE_LIMIT', 'BROWSER', 'BROWSER_LIMIT', 'BUSY', 'RESPONSE'].includes(code);
+const scheduleSeed = env => keyReady(env) ? env.CREDENTIAL_KEY : env.ADMIN_TOKEN;
 async function scheduleWindow(env) {
   const saved = await env.STATE.get(SCHEDULE_KEY, 'json');
-  const window = saved || DEFAULT_WINDOW;
-  if (!validWindow(window)) throw Error('CONFIG');
-  return { start: window.start, end: window.end };
+  return validMorning(saved || MORNING) ? { start: (saved || MORNING).start, end: (saved || MORNING).end } : MORNING;
 }
 export async function dailyPlan(env, date, window = DEFAULT_WINDOW) {
-  const seed = keyReady(env) ? env.CREDENTIAL_KEY : env.ADMIN_TOKEN;
-  if (typeof seed !== 'string' || seed.length < 32 || !validWindow(window) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw Error('CONFIG');
-  // A keyed daily draw is stable across Cron ticks and isolates, without exposing the key.
-  const key = await crypto.subtle.importKey('raw', encoder.encode(seed), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const bytes = await crypto.subtle.sign('HMAC', key, encoder.encode(`nodeseek-schedule:v1:${date}:${window.start}:${window.end}`));
-  const start = minuteOfDay(window.start), end = minuteOfDay(window.end);
-  const minute = start + new DataView(bytes).getUint32(0) % (end - start);
-  const midnight = Date.parse(date + 'T00:00:00+08:00');
-  return { date, start: window.start, end: window.end, primaryAt: new Date(midnight + minute * 60000).toISOString(), retryAt: new Date(midnight + RETRY_MINUTE * 60000).toISOString() };
+  const primaryAt = await firstAt(scheduleSeed(env), 'nodeseek', date, window);
+  const retry = await claimAttempt({ day: date, attempts: 0 }, scheduleSeed(env), 'nodeseek', Date.parse(primaryAt));
+  return { date, ...window, primaryAt, retryAt: retry.nextAt };
 }
 async function scheduleSnapshot(env, now = Date.now(), windowOverride = null) {
   const window = windowOverride || await scheduleWindow(env), date = localDate(now);
-  if (!keyReady(env) && (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 32)) return { timeZone: 'Asia/Taipei', mode: 'random-window', ...window, retry: '14:00', crons: CRONS, today: null, nextAt: null, precision: 'minute' };
-  const plan = await dailyPlan(env, date, window);
-  const record = await env.STATE.get(`daily:${date}`, 'json');
-  const completed = record?.ok === true;
-  let nextAt = plan.primaryAt;
-  if (completed || now >= Date.parse(plan.retryAt) + 5 * 60000) nextAt = (await dailyPlan(env, localDate(now + 86400000), window)).primaryAt;
-  else if (now >= Date.parse(plan.primaryAt)) nextAt = plan.retryAt;
-  return { timeZone: 'Asia/Taipei', mode: 'random-window', ...window, retry: '14:00', crons: CRONS, today: { ...plan, completed }, nextAt, precision: 'minute' };
+  if (!keyReady(env) && (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 32)) return { ...window, today: null, nextAt: null };
+  const [saved, record, config] = await Promise.all([env.STATE.get('auto-plan:v2:' + date, 'json'), env.STATE.get('daily:' + date, 'json'), env.STATE.get(CONFIG_KEY, 'json')]);
+  const blocked = record && !record.ok && !retryable(record.code) && !(Date.parse(config?.updatedAt || '') > Date.parse(record.time || record.checkedAt || ''));
+  let plan = await planFor(saved || undefined, scheduleSeed(env), 'nodeseek', now, window);
+  if (!saved && record?.time && localDate(Date.parse(record.time)) === date) plan = await claimAttempt(plan, scheduleSeed(env), 'nodeseek', Date.parse(record.time));
+  if (blocked) plan.paused = true;
+  const view = await scheduleView(plan, scheduleSeed(env), 'nodeseek', record?.ok === true, now, window);
+  return { ...view, mode: 'random-window', crons: CRONS, today: { primaryAt: view.primaryAt, completed: record?.ok === true } };
 }
 async function saveSchedule(request, env) {
   const body = await readBody(request);
-  if (!body || Array.isArray(body) || !validWindow(body)) return json({ error: 'invalid_schedule_window', message: '请填写同一天的有效时段，至少相隔 5 分钟，结束时间不晚于 14:00。' }, 400);
+  if (!body || Array.isArray(body) || !validMorning(body)) return json({ error: 'invalid_schedule_window', message: '请选择 08:00–12:00 内至少相隔 5 分钟的时段。' }, 400);
   await env.STATE.put(SCHEDULE_KEY, JSON.stringify({ start: body.start, end: body.end, updatedAt: new Date().toISOString() }));
   return json({ ok: true, schedule: await scheduleSnapshot(env, Date.now(), { start: body.start, end: body.end }) });
 }
 async function tick(env, dependencies) {
-  if (!env.STATE?.get || !env.STATE?.put || (!keyReady(env) && (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 32))) return result('CONFIG', false);
-  if ((await env.STATE.get(CONFIG_KEY, 'json'))?.enabled !== true) return result('WAITING', true);
-  const now = (dependencies.now || Date.now)(), date = localDate(now);
-  const window = await scheduleWindow(env), plan = await dailyPlan(env, date, window);
-  const minute = Math.floor((now - Date.parse(date + 'T00:00:00+08:00')) / 60000);
-  const primaryTime = Date.parse(plan.primaryAt);
-  const slot = minute >= RETRY_MINUTE && minute < RETRY_MINUTE + 5 ? 'retry'
-    : now >= primaryTime && minute < minuteOfDay(window.end) ? 'primary' : null;
-  if (!slot) return result('WAITING', true);
-  if (inFlight.has(env) || credentialChecks.has(env)) return result('WAITING', true);
-  const previous = await env.STATE.get(`daily:${date}`, 'json');
+  if (!env.STATE?.get || !env.STATE?.put || typeof scheduleSeed(env) !== 'string' || scheduleSeed(env).length < 32) return result('CONFIG', false);
+  const config = await env.STATE.get(CONFIG_KEY, 'json');
+  if (config?.enabled !== true) return result('WAITING', true);
+  const now = (dependencies.now || Date.now)(), date = localDate(now), window = await scheduleWindow(env);
+  const previous = await env.STATE.get('daily:' + date, 'json');
   if (previous?.ok) return result('SKIPPED', true, false, { date });
-  const claimKey = `schedule-claims:v1:${date}`, claims = await env.STATE.get(claimKey, 'json') || {};
-  // Editing the window does not create extra automatic attempts on the same day.
-  if (claims[slot]) return result('WAITING', true);
-  await env.STATE.put(claimKey, JSON.stringify({ ...claims, [slot]: new Date(now).toISOString() }), { expirationTtl: 7 * 86400 });
-  const report = await run(env, 'cron', { ...dependencies, scheduleSlot: slot });
-  if (report.code === 'BUSY') {
-    // A same-isolate operation may have started between the check and the KV write.
-    await env.STATE.put(claimKey, JSON.stringify(claims), { expirationTtl: 7 * 86400 });
-  }
+  if (previous && !retryable(previous.code) && !(Date.parse(config.updatedAt || '') > Date.parse(previous.time || previous.checkedAt || ''))) return result('WAITING', true);
+  const key = 'auto-plan:v2:' + date, saved = await env.STATE.get(key, 'json');
+  let plan = await planFor(saved || undefined, scheduleSeed(env), 'nodeseek', now, window);
+  if (!saved && previous?.time && localDate(Date.parse(previous.time)) === date) plan = await claimAttempt(plan, scheduleSeed(env), 'nodeseek', Date.parse(previous.time));
+  if (!saved && previous?.time) await env.STATE.put(key, JSON.stringify(plan), { expirationTtl: 7 * 86400 });
+  if (plan.paused || !plan.nextAt || now < Date.parse(plan.nextAt) || inFlight.has(env) || credentialChecks.has(env)) return result('WAITING', true);
+  plan = await claimAttempt(plan, scheduleSeed(env), 'nodeseek', now);
+  await env.STATE.put(key, JSON.stringify(plan), { expirationTtl: 7 * 86400 });
+  const report = await run(env, 'cron', { ...dependencies, scheduleSlot: 'attempt-' + plan.attempts });
+  if (report.storage === 'failed') await env.STATE.put(key, JSON.stringify({ ...plan, paused: true }), { expirationTtl: 7 * 86400 });
   return report;
 }
 export async function scheduledTick(env, dependencies = {}) {

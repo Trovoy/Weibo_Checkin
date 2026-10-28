@@ -105,7 +105,7 @@ test('Huya shared route requires panel authentication and same-origin writes and
   assert.equal((await request('tick', {})).status, 404); assert.equal(calls.length, 0);
   assert.equal((await request('status')).status, 200); assert.equal(calls[0][0], 'https://huya/status'); assert.equal(new Headers(calls[0][1].headers).get('Cookie'), null);
 });
-test('Huya serializes concurrent manual and cron runs, skips after success and persists once-per-day cron attempts', async () => {
+test('Huya serializes concurrent manual and cron runs, skips after success and persists retry plans', async () => {
   const data = initial(); data.credentials = await seal({ platform: 'huya', cookie }, env.ENCRYPTION_KEY); data.enabled = true; data.time = '00:00';
   const values = new Map([['state', data]]), ctx = { storage: { get: async k => structuredClone(values.get(k)), put: async (k, v) => { values.set(k, structuredClone(v)); } } };
   const original = globalThis.fetch; let inventoryReads = 0, sends = 0;
@@ -121,7 +121,7 @@ test('Huya serializes concurrent manual and cron runs, skips after success and p
     const object = new HuyaAccount(ctx as any, env as any), call = action => object.fetch(new Request('https://internal/' + action, { method: 'POST' }));
     await Promise.all([call('run'), call('run'), call('tick'), call('tick')]); assert.equal(sends, 1); assert.equal(inventoryReads, 2);
     assert.equal(values.get('state')!.history.length, 1); assert.equal(values.get('state')!.history[0].code, 'SUCCESS');
-    assert.match(values.get('state')!.attemptedDay!, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(values.get('state')!.schedule!.day, /^\d{4}-\d{2}-\d{2}$/);
   } finally { globalThis.fetch = original; }
 });
 test('Huya QR login encrypts temporary sessions and cookies, exposes only the image, and closes the browser on completion', async () => {

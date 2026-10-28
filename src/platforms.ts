@@ -1,4 +1,5 @@
 import type { Env } from './account.ts';
+import { validMorning } from './schedule.ts';
 
 type Data = Record<string, any>;
 interface PlatformAdapter {
@@ -27,7 +28,7 @@ function record(data: Data | null) {
 }
 function schedule(data: Data = {}) {
   const clock = (x: unknown) => typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x) ? x : null;
-  return { start: clock(data.start), end: clock(data.end), retry: clock(data.retry), nextAt: stamp(data.nextAt),
+  return { start: clock(data.start), end: clock(data.end), retry: clock(data.retry), nextAt: stamp(data.nextAt), paused: data.paused === true, attempts: number(data.attempts), retryMinutes: { min: 45, max: 75 },
     today: data.today ? { primaryAt: stamp(data.today.primaryAt), retryAt: stamp(data.today.retryAt), completed: data.today.completed === true } : null };
 }
 function config(data: Data) {
@@ -86,7 +87,7 @@ async function nodeSeek(request: Request, action: string, env: Env) {
   if (action === 'schedule') {
     const minute = (x: unknown) => typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x) ? Number(x.slice(0, 2)) * 60 + Number(x.slice(3)) : NaN;
     const start = minute(input.start), end = minute(input.end);
-    if (!Number.isFinite(start + end) || end - start < 5 || end > 14 * 60) return json({ error: '时段至少 5 分钟，结束不晚于 14:00' }, 400);
+    if (!Number.isFinite(start + end) || !validMorning({ start: input.start, end: input.end })) return json({ error: '请选择 08:00–12:00 内至少相隔 5 分钟的时段' }, 400);
     body = { start: input.start, end: input.end };
   }
   if (action === 'reconcile') { if (!validMonth(input.month)) return json({ error: '请输入有效月份' }, 400); body = { month: input.month }; }

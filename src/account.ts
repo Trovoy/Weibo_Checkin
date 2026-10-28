@@ -1,6 +1,7 @@
 import { CookieJar, type Cookie } from './cookies.ts';
 import { open, seal } from './crypto.ts';
 import { WeiboClient, WeiboError, UA, type AccountProfile } from './weibo.ts';
+import { planFor, claimAttempt, scheduleView, type DailySchedule } from './schedule.ts';
 
 export interface Env {
   ACCOUNT: DurableObjectNamespace;
@@ -10,19 +11,21 @@ export interface Env {
   NOTIFY_WEBHOOK_URL?: string;
   NODESEEK?: DurableObjectNamespace;
   HUYA?: DurableObjectNamespace;
+  NOTIFICATIONS?: DurableObjectNamespace;
   NODESEEK_CREDENTIAL_KEY?: string;
   NODESEEK_LEGACY_STATE?: KVNamespace;
   BROWSER?: Fetcher;
 }
 export interface Topic { id: string; name: string }
 interface Entry { at: string; day: string; topic: Topic; result: 'success' | 'already' | 'failed'; message: string }
-interface Job { id: string; day: string; topics: Topic[]; index: number; startedAt: string; finishedAt?: string; status: 'running' | 'done' | 'stopped'; message?: string }
+interface Job { id: string; day: string; topics: Topic[]; index: number; startedAt: string; finishedAt?: string; status: 'running' | 'done' | 'stopped'; message?: string; pendingTopic?: string }
 interface State {
   enabled: boolean; topics: Topic[]; credentials?: string;
   login: 'missing' | 'valid' | 'expired' | 'blocked';
   lastChecked?: string; message?: string; job?: Job;
   profile?: AccountProfile;
   history: Entry[]; completed: Record<string, string[]>; lastAlert?: string;
+  schedule?: DailySchedule;
 }
 interface QR { qrid: string; image: string; cookies: Cookie[]; expires: number; lastPoll: number; mobile?: boolean; expectedUid?: string }
 export class HttpError extends Error {
@@ -100,12 +103,13 @@ export class WeiboAccount {
     await this.alert(state, problem.message);
     return problem;
   }
-  private view(state: State) {
+  private async view(state: State) {
     const today = dayKey();
     return { enabled: state.enabled, topics: state.topics, login: state.login, lastChecked: state.lastChecked,
       message: state.message, job: state.job, history: state.history, today,
       recentCompletions: recentCompletions(state.completed, today, state.history),
-      completedToday: state.completed[today] ?? [], hasCredentials: !!state.credentials, profile: state.profile };
+      completedToday: state.completed[today] ?? [], hasCredentials: !!state.credentials, profile: state.profile,
+      schedule: await scheduleView(state.job?.day === today && state.job.pendingTopic ? { ...await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo'), paused: true } : state.schedule, this.env.ENCRYPTION_KEY, 'weibo', state.topics.length > 0 && state.topics.every(t => (state.completed[today] ?? []).includes(t.id))) };
   }
   private async start(state: State) {
     if (state.job?.status === 'running') return { started: false, message: '已有正在执行的任务' };
@@ -114,6 +118,7 @@ export class WeiboAccount {
     const day = dayKey();
     const topics = state.topics.filter(t => !(state.completed[day] ?? []).includes(t.id));
     if (!topics.length) return { started: false, message: '今天配置的超话均已签到' };
+    state.schedule = await claimAttempt(await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo'), this.env.ENCRYPTION_KEY, 'weibo');
     state.job = { id: crypto.randomUUID(), day, topics, index: 0, startedAt: new Date().toISOString(), status: 'running' };
     state.message = undefined;
     for (const date of Object.keys(state.completed).sort().slice(0, -7)) delete state.completed[date];
@@ -157,7 +162,9 @@ export class WeiboAccount {
     }
     if (request.method !== 'POST') throw new HttpError(404, '接口不存在');
     if (path === '/internal/cron') {
-      if (!state.enabled || state.login !== 'valid' || !state.topics.length) return { skipped: true };
+      if (!state.enabled || state.login !== 'valid' || !state.topics.length || (state.job?.day === dayKey() && state.job.pendingTopic)) return { skipped: true };
+      const plan = await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo');
+      if (plan.paused || !plan.nextAt || Date.now() < Date.parse(plan.nextAt)) return { skipped: true };
       return this.start(state);
     }
     if (path === '/api/run') return this.start(state);
@@ -199,6 +206,7 @@ export class WeiboAccount {
     }
     if (path === '/api/stop') {
       if (state.job?.status === 'running') { state.job.status = 'stopped'; state.job.finishedAt = new Date().toISOString(); state.job.message = '手动停止'; }
+      state.schedule = { ...await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo'), paused: true };
       await this.ctx.storage.transaction(async txn => { await txn.put('state', state); await txn.deleteAlarm(); });
       return { message: '任务已停止' };
     }
@@ -317,12 +325,19 @@ export class WeiboAccount {
       }
       const topic = job.topics[job.index];
       if (!topic) { job.status = 'done'; job.finishedAt = new Date().toISOString(); await this.save(state); return; }
+      if (job.pendingTopic) {
+        job.status = 'stopped'; job.finishedAt = new Date().toISOString(); job.message = '上次签到结果不明，请先在微博核对后手动执行';
+        state.schedule = { ...await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo'), paused: true };
+        state.message = job.message; await this.save(state); return;
+      }
       const client = await this.client(state);
       try {
         if (job.index === 0) { await client.validate(); state.lastChecked = new Date().toISOString(); }
+        if (!(state.completed[job.day] ?? []).includes(topic.id)) { job.pendingTopic = topic.id; await this.save(state); }
         const result = (state.completed[job.day] ?? []).includes(topic.id) ? 'already' : await client.checkin(topic.id);
         const completed = state.completed[job.day] ??= [];
         if (!completed.includes(topic.id)) completed.push(topic.id);
+        delete job.pendingTopic;
         state.history.unshift({ at: new Date().toISOString(), day: job.day, topic, result, message: result === 'success' ? '签到成功' : '今日已签到' });
         job.index++;
         if (job.index >= job.topics.length) { job.status = 'done'; job.finishedAt = new Date().toISOString(); }
@@ -330,6 +345,8 @@ export class WeiboAccount {
         const problem = error instanceof WeiboError ? error : new WeiboError('protocol', '处理微博响应失败，本轮已停止');
         state.history.unshift({ at: new Date().toISOString(), day: job.day, topic, result: 'failed', message: problem.message });
         job.status = 'stopped'; job.finishedAt = new Date().toISOString(); job.message = problem.message;
+        // A failed validation GET is safe to retry; a lost check-in response is not.
+        if (job.pendingTopic || problem.kind !== 'network') state.schedule = { ...await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'weibo'), paused: true };
         // A POST may have reached Weibo even if its response was lost. Do not retry automatically.
         await this.recordFailure(state, problem);
       }

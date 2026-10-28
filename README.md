@@ -10,7 +10,7 @@ A self-hosted, single-user dashboard for **Weibo Super Topics, NodeSeek and Huya
 
 - **Weibo:** QR-code sign-in, followed Super Topics and personal levels, topic search, up to 30 configured topics, manual runs and daily scheduling.
 - **Huya:** official-app QR sign-in, encrypted Cookie capture, all available ordinary backpack tiger food sent to one configured room, daily scheduling and verified receipts. See the [Huya guide](docs/HUYA.md).
-- **NodeSeek:** Cookie checks, a stable daily time within a selected random window, a 14:00 catch-up check, reward records and bounded ledger reconciliation.
+- **NodeSeek:** Cookie checks, a random morning schedule with safe retries, reward records and bounded ledger reconciliation.
 - **One dashboard:** grouped platform navigation, an all-platform log, today's completion ring and a seven-day stacked chart. Counts use UTC+8 and count each confirmed daily item once; unknown data stays unknown.
 - **Browser extension:** pair Chrome/Edge with your own dashboard to synchronize NodeSeek cookies. Its token can synchronize credentials only; management still requires a dashboard session.
 - **Protected access:** an admin token, expiring HttpOnly sessions, same-origin write checks and encrypted platform credentials. No account password is collected.
@@ -45,7 +45,7 @@ Open the deployed `https://weibo-checkin.<your-subdomain>.workers.dev` address. 
 3. Select the topics, save, run a manual check-in and inspect the result.
 4. Enable daily scheduling only after a successful manual run. **New installations default to off.**
 
-The Weibo cron is `0 1 * * *` (09:00 UTC+8). Each alarm handles one topic, with a ten-second interval. Saved daily completions are skipped.
+The shared minute cron checks durable plans for all three platforms. Each platform independently selects its first daily time within 08:00–12:00 UTC+8. Safe unfinished attempts retry after 45–75 minutes through the rest of that day; successful items are skipped. Weibo handles one topic per alarm, ten seconds apart. See [scheduling and retry rules](docs/SCHEDULING.md). Optional [Telegram notifications](docs/NOTIFICATIONS.md) provide a daily 13:00 report and deduplicated anomaly/recovery alerts.
 
 The desktop and mobile Weibo sites use different login domains. Personal levels may require a second QR connection to the mobile site using the **same account**. The server checks matching UIDs before merging mobile-domain cookies. It never substitutes public topic popularity or another person's level for your personal level. Reading followed topics does not follow new topics or automatically add every result to check-in.
 
@@ -99,7 +99,7 @@ Local development can make real upstream requests. Tests use simulated networks;
 - Upstream websites control login validity. Cookie updates do not guarantee renewal; QR login, level retrieval and check-ins use non-public web interfaces that may change or reject Cloudflare traffic. Complete challenges in the official application and reconnect. There is no CAPTCHA bypass, password automation or proxy switching.
 - Weibo recognizes `100000` as success and `382004` as already checked in, including numeric/string forms. Unknown codes never become success. Login checks use `/ajax/setting/getPrivacy`, check-ins use `POST /ajax_proxy/chaohua/page/checkin`, and QR login uses Sina SSO.
 - A failed topic stops the Weibo run. Resolve it and retry manually; confirmed completions are skipped. Unknown POST outcomes are not automatically retried. Cancellation waits for the current request; requests time out after 15 seconds. The Weibo cron has no additional same-day catch-up retry.
-- Durable Object alarms are delivered at least once. Daily deduplication cannot guarantee exactly-once upstream requests if execution stops after the remote check-in but before local persistence.
+- Durable Object alarms are delivered at least once. A persisted pending Weibo request blocks automatic resubmission after interruption; inspect the upstream result before manually resuming on the same day. A new day starts a fresh check-in plan. This does not guarantee exactly-once upstream execution.
 - Weibo keeps seven days of deduplication dates and at most 200 log records. An old run stops when the date changes. NodeSeek uses its own records and reconciliation rules described in the platform guide.
 - The dashboard is for one person and one account per platform, with no public registration or multi-user isolation. Disconnect before changing accounts. Deleting Worker/Durable Object data removes saved configuration and login state.
 

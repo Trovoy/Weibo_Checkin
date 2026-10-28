@@ -4,6 +4,7 @@ import { platformRoute, extensionRoute } from './platforms.ts';
 export { WeiboAccount };
 export { NodeSeekAccount } from './nodeseek/account.ts';
 export { HuyaAccount } from './huya/account.ts';
+export { NotificationCenter } from './notifications.ts';
 
 function secure(response: Response) {
   const result = new Response(response.body, response);
@@ -63,6 +64,12 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (!value || !await validSession(value, env.ADMIN_TOKEN)) return json({ error: '请使用管理密钥解锁控制台' }, 401);
   if (url.pathname === '/api/session/logout' && request.method === 'POST') return new Response('{}', { headers: { 'Content-Type': 'application/json',
     'Set-Cookie': `wc_session=; HttpOnly; SameSite=Strict; Path=/api/; Max-Age=0${secureFlag}` } });
+  const notificationAction = /^\/api\/notifications\/(status|config|verify|test|report|disconnect)$/.exec(url.pathname)?.[1];
+  if (notificationAction) {
+    if (!env.NOTIFICATIONS) return json({ error: '请先部署通知存储绑定' }, 503);
+    if ((notificationAction === 'status') !== (request.method === 'GET')) return json({ error: '请求方法不正确' }, 405);
+    return env.NOTIFICATIONS.get(env.NOTIFICATIONS.idFromName('personal-notifications')).fetch('https://notifications/' + notificationAction, { method: request.method, headers: { 'Content-Type': 'application/json' }, body: request.method === 'POST' ? await request.text() : undefined });
+  }
   if (url.pathname === '/api/platforms' || url.pathname.startsWith('/api/platforms/')) return platformRoute(request, env);
   const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
   return stub.fetch(request);
@@ -79,11 +86,15 @@ export default {
   },
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (!configured(env)) return;
+    if (_event.cron === '* * * * *' && env.NOTIFICATIONS) {
+      const stub = env.NOTIFICATIONS.get(env.NOTIFICATIONS.idFromName('personal-notifications'));
+      ctx.waitUntil((async () => { const response = await stub.fetch('https://notifications/tick', { method: 'POST' }); if (!response.ok) throw new Error('Notification check failed'); })());
+    }
     if (_event.cron === '* * * * *' && env.HUYA) {
       const stub = env.HUYA.get(env.HUYA.idFromName('personal-huya'));
       ctx.waitUntil((async () => { const response = await stub.fetch('https://huya/tick', { method: 'POST' }); if (!response.ok) throw new Error('Huya scheduled task failed'); })());
     }
-    if (_event.cron === '0 1 * * *') {
+    if (_event.cron === '* * * * *' || _event.cron === '0 1 * * *') {
       const stub = env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account'));
       ctx.waitUntil((async () => { const response = await stub.fetch('https://account/internal/cron', { method: 'POST' }); if (!response.ok) throw new Error('Scheduled check-in could not start'); })());
     }

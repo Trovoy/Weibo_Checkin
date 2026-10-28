@@ -17,7 +17,7 @@ The secret generator adds `NODESEEK_CREDENTIAL_KEY` without overwriting existing
 3. Check the Cookie, confirm the result and try a manual check-in.
 4. Choose the time window and random/fixed reward mode. Enable daily check-in only if wanted; new instances default to off.
 
-A stable time is selected for each date within the chosen window (UTC+8). A 14:00–14:05 check looks for unfinished work. The minute cron only checks due plans; it does not repeatedly launch the same day's window. Confirmed daily records skip further requests and have no TTL. Ambiguous network/server outcomes do not trigger a repeated check-in POST: inspect the ledger first, and stop if it cannot establish the result.
+A stable first-attempt minute is selected each day within 08:00–12:00 UTC+8 (or a narrower saved morning window). Temporary unfinished work retries after 45–75 minutes until the day ends. Confirmed daily records skip further check-ins and have no TTL. After ambiguous writes, the ledger must establish the result before another POST; incomplete evidence allows only further reads. Authentication, challenges and configuration failures need operator action. See [scheduling rules](SCHEDULING.md).
 
 Ledger reconciliation reads at most five pages and saves check-in amounts/timestamps, not balances or unrelated spending. Unknown rewards and times remain explicitly unknown.
 
