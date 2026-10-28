@@ -3,6 +3,33 @@ let state, statusTimer, qrTimer, toastTimer, qrExpires = 0, qrMobile = false, lo
 const labels = { missing: '未连接', valid: '已连接', expired: '需重新登录', blocked: '需安全验证' };
 const busy = new Set();
 const motion = window.gsap, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const mobileLayout = matchMedia('(max-width: 680px)');
+function setMobileMenu(open, animate = true, returnFocus = false) {
+  const button = $('mobile-menu-toggle'), panel = $('workspace-navigation'), sidebar = panel.parentElement;
+  open = mobileLayout.matches && open;
+  button.setAttribute('aria-expanded', String(open));
+  button.querySelector('span').textContent = open ? '收起' : '菜单';
+  if (motion) motion.killTweensOf(panel);
+  if (!open && (returnFocus || panel.contains(document.activeElement)) && mobileLayout.matches) button.focus({ preventScroll: true });
+  panel.inert = mobileLayout.matches && !open;
+  const finish = () => {
+    panel.hidden = mobileLayout.matches && !open;
+    sidebar.classList.toggle('menu-open', open);
+    if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' });
+  };
+  if (!animate || !motion || reduceMotion.matches || !mobileLayout.matches) { finish(); return; }
+  if (open) {
+    sidebar.classList.add('menu-open'); panel.hidden = false;
+    motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', onComplete: finish });
+  } else if (panel.hidden) finish();
+  else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: finish });
+}
+$('mobile-menu-toggle').addEventListener('click', () => setMobileMenu($('mobile-menu-toggle').getAttribute('aria-expanded') !== 'true'));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('mobile-menu-toggle').getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileMenu(false, true, true); }
+});
+mobileLayout.addEventListener('change', () => setMobileMenu(false, false));
+setMobileMenu(false, false);
 const pages = {
   overview: ['签到概览', '一个工作台，查看各平台的签到状态与执行结果。'],
   topics: ['我的超话', '读取已关注的超话，管理签到列表与自动签到。'],
@@ -20,6 +47,7 @@ function enter(target, stagger = 0) {
   motion.fromTo(target, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .24, stagger, ease: 'power2.out', clearProps: 'opacity,transform', overwrite: true });
 }
 function showPage(animate = true) {
+  if (animate) setMobileMenu(false, false);
   const raw = location.hash.replace(/^#\/?/, ''), key = Object.hasOwn(pages, raw) ? raw : 'overview';
   if (location.hash !== '#/' + key) history.replaceState(null, '', '#/' + key);
   document.querySelectorAll('[data-page]').forEach(page => { page.hidden = page.dataset.page !== key; });
@@ -54,7 +82,11 @@ function toggleNav(name, open, animate = true) {
   if (open) { panel.hidden = false; motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', clearProps: 'height,opacity,overflow' }); }
   else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
 }
-for (const name of ['weibo', 'nodeseek', 'huya']) $('nav-' + name).addEventListener('click', () => toggleNav(name, $('nav-' + name).getAttribute('aria-expanded') !== 'true'));
+for (const name of ['weibo', 'nodeseek', 'huya']) $('nav-' + name).addEventListener('click', () => {
+  const open = $('nav-' + name).getAttribute('aria-expanded') !== 'true';
+  if (open && mobileLayout.matches) for (const other of ['weibo', 'nodeseek', 'huya']) if (other !== name) toggleNav(other, false, false);
+  toggleNav(name, open);
+});
 function navigate(hash) {
   const key = hash.replace(/^#\/?/, '');
   if (!Object.hasOwn(pages, key)) return;

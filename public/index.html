@@ -24,7 +24,8 @@
   </defs></svg>
   <div class="shell">
     <aside>
-      <a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>CHECK-IN HUB</small></span></a>
+      <div class="sidebar-top"><a class="brand" href="/" aria-label="每日首页"><span class="brand-icon">日</span><span>每日<small>CHECK-IN HUB</small></span></a><button id="mobile-menu-toggle" class="mobile-menu-toggle" aria-expanded="false" aria-controls="workspace-navigation"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>菜单</span></button></div>
+      <div id="workspace-navigation" class="navigation-panel">
       <p class="aside-label">工作空间</p>
       <nav aria-label="功能页面">
         <a href="#/overview"><svg class="icon"><use href="#icon-overview"/></svg>签到概览</a>
@@ -35,6 +36,7 @@
         <a href="#/notifications"><svg class="icon" aria-hidden="true"><use href="#icon-account"/></svg>通知设置</a>
       </nav>
       <div class="aside-foot"><span class="dot"></span> 个人工作台<small>单账号 · 私人空间</small><button id="lock" class="text-button" hidden>锁定控制台 ↗</button></div>
+      </div>
     </aside>
     <main>
       <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><a id="platform-home" href="https://weibo.com" target="_blank" rel="noreferrer">打开微博 ↗</a></header>
