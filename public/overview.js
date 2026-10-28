@@ -63,7 +63,7 @@ function renderRecentStats() {
     track.append(stack, value); column.append(track, node('span', day.date === state.today ? '今天' : day.date.slice(8), 'recent-date'));
     $('recent-bars').append(column);
   }
-  if (motion && !reduceMotion.matches && !$('overview').hidden) motion.fromTo(document.querySelectorAll('.recent-stack'), { scaleY: 0 }, { scaleY: 1, duration: .45, stagger: .035, ease: 'power2.out', clearProps: 'transform' });
+  if (motion && !reduceMotion.matches && !$('overview').hidden) motion.fromTo(document.querySelectorAll('.recent-stack'), { scaleY: 0 }, { scaleY: 1, force3D: true, duration: .28, stagger: .018, ease: 'power2.out', clearProps: 'transform' });
 }
 async function loadRecentStats(force = false) {
   if (!state || !nsAvailable()) { renderRecentStats(); return; }

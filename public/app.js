@@ -4,27 +4,56 @@ const labels = { missing: '未连接', valid: '已连接', expired: '需重新�
 const busy = new Set();
 const motion = window.gsap, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const mobileLayout = matchMedia('(max-width: 680px)');
+let keyboardNavigation = false, enteringElements = [];
+document.addEventListener('pointerdown', () => { keyboardNavigation = false; }, { passive: true });
+document.addEventListener('keydown', event => { if (!event.metaKey && !event.ctrlKey && !event.altKey) keyboardNavigation = true; });
+function disclose(panel, open, animate = true) {
+  if (motion) motion.killTweensOf(panel);
+  panel.inert = !open;
+  const finish = () => {
+    panel.hidden = !open;
+    if (motion) motion.set(panel, { clearProps: 'opacity,transform,willChange' });
+  };
+  if (!animate || !motion || reduceMotion.matches) { finish(); return; }
+  if (open) {
+    panel.hidden = false;
+    motion.fromTo(panel, { opacity: 0, y: -4, willChange: 'transform,opacity' }, { opacity: 1, y: 0, force3D: true, duration: .16, ease: 'power2.out', onComplete: finish });
+  } else if (panel.hidden) finish();
+  else motion.to(panel, { opacity: 0, y: -4, force3D: true, duration: .12, ease: 'power2.in', onComplete: finish });
+}
 function setMobileMenu(open, animate = true, returnFocus = false) {
-  const button = $('mobile-menu-toggle'), panel = $('workspace-navigation'), sidebar = panel.parentElement;
+  const button = $('mobile-menu-toggle'), panel = $('workspace-navigation'), sidebar = panel.parentElement, backdrop = $('mobile-menu-backdrop');
   open = mobileLayout.matches && open;
   button.setAttribute('aria-expanded', String(open));
   button.querySelector('span').textContent = open ? '收起' : '菜单';
-  if (motion) motion.killTweensOf(panel);
-  if (!open && (returnFocus || panel.contains(document.activeElement)) && mobileLayout.matches) button.focus({ preventScroll: true });
+  if (motion) motion.killTweensOf([panel, backdrop]);
+  if (!open && mobileLayout.matches) {
+    if (returnFocus || (keyboardNavigation && panel.contains(document.activeElement))) button.focus({ preventScroll: true });
+    else if (panel.contains(document.activeElement)) document.activeElement.blur();
+  }
   panel.inert = mobileLayout.matches && !open;
   const finish = () => {
     panel.hidden = mobileLayout.matches && !open;
+    backdrop.hidden = !open;
     sidebar.classList.toggle('menu-open', open);
-    if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' });
+    if (motion) motion.set([panel, backdrop], { clearProps: 'opacity,transform,willChange' });
   };
   if (!animate || !motion || reduceMotion.matches || !mobileLayout.matches) { finish(); return; }
   if (open) {
-    sidebar.classList.add('menu-open'); panel.hidden = false;
-    motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', onComplete: finish });
+    sidebar.classList.add('menu-open'); panel.hidden = false; backdrop.hidden = false;
+    motion.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: .18 });
+    motion.fromTo(panel, { y: -6, opacity: 0, willChange: 'transform,opacity' }, { y: 0, opacity: 1, force3D: true, duration: .18, ease: 'power2.out', onComplete: finish });
   } else if (panel.hidden) finish();
-  else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: finish });
+  else {
+    motion.to(backdrop, { opacity: 0, duration: .14 });
+    motion.to(panel, { y: -4, opacity: 0, force3D: true, duration: .14, ease: 'power2.in', onComplete: finish });
+  }
 }
 $('mobile-menu-toggle').addEventListener('click', () => setMobileMenu($('mobile-menu-toggle').getAttribute('aria-expanded') !== 'true'));
+$('mobile-menu-backdrop').addEventListener('click', () => setMobileMenu(false));
+document.addEventListener('focusin', event => {
+  if (mobileLayout.matches && $('mobile-menu-toggle').getAttribute('aria-expanded') === 'true' && !document.querySelector('aside').contains(event.target) && event.target !== $('mobile-menu-backdrop')) setMobileMenu(false);
+});
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && $('mobile-menu-toggle').getAttribute('aria-expanded') === 'true') { event.preventDefault(); setMobileMenu(false, true, true); }
 });
@@ -43,8 +72,16 @@ const pages = {
   history: ['签到记录', '按平台与月份查看签到结果。']
 };
 function enter(target, stagger = 0) {
+  if (motion && enteringElements.length) {
+    motion.killTweensOf(enteringElements); motion.set(enteringElements, { clearProps: 'opacity,transform,willChange' });
+  }
   if (!motion || reduceMotion.matches) return;
-  motion.fromTo(target, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .24, stagger, ease: 'power2.out', clearProps: 'opacity,transform', overwrite: true });
+  const elements = target.nodeType ? [target] : [...target];
+  // Animate a few visible cards, never a long page/table as one large layer.
+  enteringElements = elements.flatMap(element => element.classList.contains('page') ? [...element.querySelectorAll('.card')].filter(card => {
+    const rect = card.getBoundingClientRect(); return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+  }).slice(0, 4) : [element]);
+  motion.fromTo(enteringElements, { opacity: 0, y: 4, willChange: 'transform,opacity' }, { opacity: 1, y: 0, force3D: true, duration: .18, stagger: Math.min(stagger, .025), ease: 'power2.out', clearProps: 'opacity,transform,willChange', overwrite: true });
 }
 function showPage(animate = true) {
   if (animate) setMobileMenu(false, false);
@@ -68,7 +105,7 @@ function showPage(animate = true) {
   $('platform-home').replaceChildren(document.createTextNode(homeLabel), icon('external'));
   if (key.startsWith('huya')) $('platform-home').href = 'https://www.huya.com';
   $('platform-home').hidden = key === 'notifications';
-  if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
+  if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .025); if (keyboardNavigation) $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
   if (animate && state && key === 'huya' && typeof refreshHuya === 'function') refreshHuya().then(() => { renderPlatformCards(); renderPlatformHistory(); }).catch(() => {});
   if (animate && state && key === 'notifications' && typeof refreshNotifications === 'function') refreshNotifications().catch(e => toast(e.message, true));
@@ -77,11 +114,12 @@ function toggleNav(name, open, animate = true) {
   const button = $('nav-' + name), panel = $('nav-' + name + '-items'), arrow = button.querySelector('.nav-chevron');
   if (button.getAttribute('aria-expanded') === String(open)) return;
   button.setAttribute('aria-expanded', String(open));
-  if (motion) { motion.killTweensOf([panel, arrow]); motion.set(arrow, { rotation: open ? 90 : 0 }); }
-  if (!animate || !motion || reduceMotion.matches) { panel.hidden = !open; if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' }); return; }
-  motion.fromTo(arrow, { rotation: open ? 0 : 90 }, { rotation: open ? 90 : 0, duration: .2, ease: 'power2.out' });
-  if (open) { panel.hidden = false; motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .24, ease: 'power2.out', clearProps: 'height,opacity,overflow' }); }
-  else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
+  if (motion) {
+    motion.killTweensOf(arrow);
+    if (!animate || reduceMotion.matches) motion.set(arrow, { rotation: open ? 90 : 0 });
+    else motion.to(arrow, { rotation: open ? 90 : 0, duration: .16, ease: 'power2.out' });
+  }
+  disclose(panel, open, animate);
 }
 for (const name of ['weibo', 'nodeseek', 'huya']) $('nav-' + name).addEventListener('click', () => {
   const open = $('nav-' + name).getAttribute('aria-expanded') !== 'true';
@@ -98,12 +136,7 @@ function loginPanel(show, animate = false) {
   const shouldShow = show || state?.login !== 'valid';
   $('hide-login').hidden = state?.login !== 'valid';
   if (panel.hidden === !shouldShow) return;
-  if (motion) motion.killTweensOf(panel);
-  if (!animate || !motion || reduceMotion.matches) { if (motion) motion.set(panel, { clearProps: 'height,opacity,overflow' }); panel.hidden = !shouldShow; return; }
-  if (shouldShow) {
-    panel.hidden = false;
-    motion.fromTo(panel, { height: 0, opacity: 0, overflow: 'hidden' }, { height: 'auto', opacity: 1, duration: .25, ease: 'power2.out', clearProps: 'height,opacity,overflow' });
-  } else motion.to(panel, { height: 0, opacity: 0, overflow: 'hidden', duration: .2, ease: 'power2.inOut', onComplete: () => { panel.hidden = true; motion.set(panel, { clearProps: 'height,opacity,overflow' }); } });
+  disclose(panel, shouldShow, animate);
 }
 function renderAccount() {
   const connected = state.login === 'valid', profile = state.profile;

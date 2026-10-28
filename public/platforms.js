@@ -69,7 +69,7 @@ function renderOverviewProgress() {
   const offset = pending || !total ? 100 : 100 - done / total * 100;
   if (motion) motion.killTweensOf($('progress-ring'));
   if (!motion || reduceMotion.matches || $('overview').hidden || $('stats-today').hidden) $('progress-ring').setAttribute('stroke-dashoffset', String(offset));
-  else motion.to($('progress-ring'), { attr: { 'stroke-dashoffset': offset }, duration: .75, ease: 'power2.out' });
+  else motion.to($('progress-ring'), { attr: { 'stroke-dashoffset': offset }, duration: .45, ease: 'power2.out' });
 }
 function renderNodeSeek() {
   const ready = nsAvailable() && !!nsSnapshot && !nsError, config = nsSnapshot?.config, entry = nsSnapshot?.record;
