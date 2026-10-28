@@ -231,6 +231,7 @@ const overviewView = (() => {
   plot.addEventListener('pointerleave', () => { if (!dragging && data) seek(selectedIndex()); });
   new ResizeObserver(() => { if (data) { updatePlot(false); moveSelection(false); } }).observe(root);
   reduceMotion.addEventListener('change', settle);
+  document.addEventListener('appearancechange', settle);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) settle(); });
   $('recent-retry').addEventListener('click', () => action($('recent-retry'), async () => { await Promise.allSettled([refreshHuya().then(renderRecentStats), loadRecentStats(true)]); }));
   percent.set(null, false); week.set(null, false);
