@@ -35,7 +35,7 @@ function renderPlatformCards() {
       detail = hyError || (hySnapshot?.room ? `${hySnapshot.room.name} · ${hySnapshot.room.id} · ${hySnapshot.record?.code === 'SUCCESS' ? hySnapshot.record.count + ' 个免费虎粮' : '免费背包虎粮'}` : platform.description);
     }
     card.append(node('p', status, 'platform-status'), node('p', detail, 'fine'));
-    const link = node('a', '管理 ' + platform.name + ' ↗', 'inline-link'); link.href = '#/' + platform.page; card.append(link); $('platform-list').append(card);
+    const link = node('a', '管理 ' + platform.name, 'inline-link'); link.append(icon('arrow-right')); link.href = '#/' + platform.page; card.append(link); $('platform-list').append(card);
   }
 }
 function renderOverviewProgress() {
