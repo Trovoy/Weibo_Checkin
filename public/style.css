@@ -34,13 +34,14 @@ button:disabled { cursor: default; color: var(--muted); background: var(--surfac
 .danger { color: var(--danger); }
 .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.action-icon { display: inline-block; width: 14px; height: 14px; margin-left: 6px; vertical-align: -2px; }
 .shell { max-width: 1720px; margin: auto; display: grid; grid-template-columns: 204px minmax(0, 1fr); min-height: 100vh; }
 aside { display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; padding: 16px 12px; background: var(--surface); border-right: 1px solid var(--line); }
 .sidebar-top { flex-shrink: 0; }
 .navigation-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
 .mobile-menu-toggle { display: none; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); font-size: 16px; font-weight: 600; }
-.brand-icon { display: grid; place-items: center; width: 28px; height: 28px; color: var(--paper); background: var(--accent); border-radius: 6px; font-size: 17px; font-weight: 500; }
+.brand-icon { display: block; width: 28px; height: 28px; flex-shrink: 0; }
 .brand small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 1px; letter-spacing: .5px; }
 .aside-label { font-size: 12px; color: var(--muted); margin: 28px 10px 10px; }
 nav { display: grid; gap: 5px; }
@@ -86,7 +87,6 @@ p { line-height: 1.65; }
 .run-copy h2 { font-size: 14px; }
 .run-copy p { font-size: 12px; margin: 4px 0 0; }
 .run-card button { white-space: nowrap; }
-.run-card button span { margin-left: 8px; }
 #dashboard { display: flex; flex-direction: column; min-height: calc(100vh - 84px); }
 .page { width: 100%; min-width: 0; }
 #account { max-width: 680px; }

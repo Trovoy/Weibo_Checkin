@@ -64,8 +64,9 @@ function showPage(animate = true) {
   $('overview-copy').textContent = pages[key][1]; $('date').hidden = key !== 'overview';
   document.title = pages[key][0] + ' · 每日';
   $('platform-home').href = key.startsWith('nodeseek') ? 'https://www.nodeseek.com' : 'https://weibo.com';
-  $('platform-home').textContent = key.startsWith('nodeseek') ? '打开 NodeSeek ↗' : '打开微博 ↗';
-  if (key.startsWith('huya')) { $('platform-home').href = 'https://www.huya.com'; $('platform-home').textContent = '打开虎牙 ↗'; }
+  const homeLabel = key.startsWith('nodeseek') ? '打开 NodeSeek' : key.startsWith('huya') ? '打开虎牙' : '打开微博';
+  $('platform-home').replaceChildren(document.createTextNode(homeLabel), icon('external'));
+  if (key.startsWith('huya')) $('platform-home').href = 'https://www.huya.com';
   $('platform-home').hidden = key === 'notifications';
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
@@ -172,6 +173,12 @@ function node(tag, text, className) {
   if (className) element.className = className;
   return element;
 }
+function icon(name) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  element.setAttribute('class', 'icon action-icon'); element.setAttribute('aria-hidden', 'true'); element.setAttribute('focusable', 'false');
+  use.setAttribute('href', '#icon-' + name); element.append(use); return element;
+}
 function addTopic(topic = { id: '', name: '' }) {
   const row = node('div', undefined, 'topic-row');
   const fields = node('div');
@@ -182,7 +189,7 @@ function addTopic(topic = { id: '', name: '' }) {
   if (topic.id) id.type = 'hidden';
   fields.append(name, id);
   if (topic.id) {
-    const link = node('a', '在微博查看 ↗', 'topic-link'); link.href = 'https://weibo.com/p/' + topic.id;
+    const link = node('a', '在微博查看', 'topic-link'); link.append(icon('external')); link.href = 'https://weibo.com/p/' + topic.id;
     link.target = '_blank'; link.rel = 'noreferrer'; fields.append(link);
   }
   const remove = node('button', '×', 'remove'); remove.type = 'button'; remove.setAttribute('aria-label', '移除此超话');
