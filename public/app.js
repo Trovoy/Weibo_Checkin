@@ -425,4 +425,7 @@ for (const link of document.querySelectorAll('a[href^="#/"]')) link.addEventList
 });
 window.addEventListener('hashchange', () => showPage());
 showPage(false);
-refresh(true).catch(error => { if (error.message !== '请使用管理密钥解锁控制台') toast(error.message, true); });
+// All deferred platform/chart scripts must exist before the first status response.
+document.addEventListener('DOMContentLoaded', () => {
+  refresh(true).catch(error => { if (error.message !== '请使用管理密钥解锁控制台') toast(error.message, true); });
+}, { once: true });
