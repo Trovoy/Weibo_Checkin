@@ -39,6 +39,7 @@ function showPage(animate = true) {
   if (key.startsWith('huya')) { $('platform-home').href = 'https://www.huya.com'; $('platform-home').textContent = '打开虎牙 ↗'; }
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
+  if (animate && state && key === 'huya' && typeof refreshHuya === 'function') refreshHuya().then(() => { renderPlatformCards(); renderPlatformHistory(); }).catch(() => {});
 }
 function toggleNav(name, open, animate = true) {
   const button = $('nav-' + name), panel = $('nav-' + name + '-items'), arrow = button.querySelector('.nav-chevron');
