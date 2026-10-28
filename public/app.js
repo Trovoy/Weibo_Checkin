@@ -61,6 +61,7 @@ mobileLayout.addEventListener('change', () => setMobileMenu(false, false));
 setMobileMenu(false, false);
 const pages = {
   overview: ['签到概览', '一个工作台，查看各平台的签到状态与执行结果。'],
+  weibo: ['微博 · 签到状态', '查看超话签到进度、自动任务与最近结果，按需手动执行。'],
   topics: ['我的超话', '读取已关注的超话，管理签到列表与自动签到。'],
   account: ['微博账号', '查看当前账号，管理登录和个人等级连接。'],
   nodeseek: ['NodeSeek', '管理每日签到、Cookie 检测、随机时段与鸡腿记录。'],
@@ -93,7 +94,7 @@ function showPage(animate = true) {
     const active = link.hash === '#/' + key; link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   });
-  const group = ['topics', 'account'].includes(key) ? 'weibo' : key.startsWith('nodeseek') ? 'nodeseek' : key.startsWith('huya') ? 'huya' : '';
+  const group = ['weibo', 'topics', 'account'].includes(key) ? 'weibo' : key.startsWith('nodeseek') ? 'nodeseek' : key.startsWith('huya') ? 'huya' : '';
   for (const name of ['weibo', 'nodeseek', 'huya']) {
     $('nav-' + name).classList.toggle('branch-active', name === group);
     if (name === group) toggleNav(name, true, animate);
@@ -109,8 +110,8 @@ function showPage(animate = true) {
   $('platform-home').replaceChildren(icon(platform), homeText, homeArrow);
   $('platform-home').setAttribute('aria-label', '在新标签页打开' + homeLabel);
   if (key.startsWith('huya')) $('platform-home').href = 'https://www.huya.com';
-  $('platform-home').hidden = key === 'notifications';
-  document.querySelector('.toolbar-divider').hidden = key === 'notifications';
+  $('platform-home').hidden = !group;
+  document.querySelector('.toolbar-divider').hidden = !group;
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .025); if (keyboardNavigation) $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
   if (animate && state && key === 'huya' && typeof refreshHuya === 'function') refreshHuya().then(() => { renderPlatformCards(); renderPlatformHistory(); }).catch(() => {});
