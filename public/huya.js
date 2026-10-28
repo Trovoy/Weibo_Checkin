@@ -1,21 +1,22 @@
-let hySnapshot, hyError = '', hyFormsReady = false;
+let hySnapshot, hyError = '', hyFormsReady = false, hyRefreshPending, hyReading = false;
 let hyQRTimer, hyQRExpires = 0;
 const hyLabels = { SUCCESS: '已赠送', EMPTY: '无可用虎粮', ERROR: '检测失败', REJECTED: '赠送被拒绝', REVIEW: '待核对' };
 function resetHuya() {
-  hySnapshot = undefined; hyError = ''; hyFormsReady = false;
+  hySnapshot = undefined; hyError = ''; hyFormsReady = false; hyRefreshPending = undefined; hyReading = false;
   stopHuyaQR();
   $('hy-cookie').value = ''; $('hy-room').value = ''; $('hy-confirmed').checked = false; $('hy-history').replaceChildren();
 }
 function renderHuya() {
   const s = hySnapshot, ready = !!s?.configured && !hyError;
-  $('hy-state').textContent = hyError ? '读取失败' : s?.paused ? '已暂停 · 待核对' : s?.record ? hyLabels[s.record.code] : ready ? '已配置' : '未连接';
+  const replenished = ready && s.inventory?.count > 0 && s.record?.code === 'EMPTY';
+  $('hy-state').textContent = hyError ? '读取失败' : s?.paused ? '已暂停 · 待核对' : replenished ? '有虎粮待赠送' : s?.record ? hyLabels[s.record.code] : ready ? '已配置' : '未连接';
   $('hy-state').className = 'badge ' + (hyError ? 'failed' : s?.paused ? 'warning' : s?.record?.code === 'SUCCESS' ? 'success' : ['ERROR', 'REJECTED'].includes(s?.record?.code) ? 'failed' : 'neutral');
-  $('hy-count').textContent = s?.inventory ? `${s.inventory.count} 个` : '—';
-  $('hy-checked').textContent = s?.inventory ? '检测于 ' + time(s.inventory.checkedAt) : '点击检测背包读取当前数量';
+  $('hy-count').textContent = hyReading ? '检测中…' : hyError ? '—' : s?.inventory ? `${s.inventory.count} 个` : '—';
+  $('hy-checked').textContent = hyError ? '本次检测失败，请重新检测；未将失败结果计为 0' : s?.inventory ? '库存快照 · ' + time(s.inventory.checkedAt) : '点击检测背包读取当前数量';
   $('hy-room-label').textContent = s?.room ? `${s.room.name} · ${s.room.id}` : '未设置';
   $('hy-schedule-label').textContent = s?.enabled ? `每日 ${s.time} 自动执行 · UTC+8` : '自动赠送未开启';
   const entry = s?.record;
-  $('hy-result').textContent = hyError || (entry ? `${hyLabels[entry.code]}${entry.code === 'SUCCESS' ? ` ${entry.count} 个免费虎粮` : ''} · ${s.history.find(x => x.at === entry.at)?.message || ''}` : '尚未执行。请先检测背包并核对接收房间。');
+  $('hy-result').textContent = hyError || (entry ? `上次任务（${time(entry.at)}）：${hyLabels[entry.code]}${entry.code === 'SUCCESS' ? ` ${entry.count} 个免费虎粮` : ''} · ${s.history.find(x => x.at === entry.at)?.message || ''}${replenished ? '。当前已检测到虎粮，可手动赠送。' : ''}` : '尚未执行。请先检测背包并核对接收房间。');
   $('hy-review').hidden = !s?.paused;
   syncHuyaControls();
   $('hy-history').replaceChildren(); $('hy-empty').hidden = !!s?.history.length;
@@ -28,13 +29,26 @@ function renderHuya() {
 }
 function syncHuyaControls() {
   const s = hySnapshot, ready = !!s?.configured && !hyError;
-  for (const id of ['hy-probe', 'hy-run']) $(id).disabled = busy.has(id) || !ready || (id === 'hy-run' && (s.paused || s.record?.code === 'SUCCESS'));
+  for (const id of ['hy-probe', 'hy-run']) $(id).disabled = busy.has(id) || hyReading || !s?.configured || (id === 'hy-run' && (!ready || s.paused || s.record?.code === 'SUCCESS'));
 }
-async function refreshHuya(epoch = platformEpoch) {
-  if (!platformRegistry.some(x => x.id === 'huya' && x.available)) { hySnapshot = undefined; return; }
-  try { const data = await api('platforms/huya/status'); if (epoch !== platformEpoch) return; hySnapshot = data; hyError = ''; if (data.qr && !hyQRExpires) resumeHuyaQR(data.qr, epoch); }
-  catch (error) { if (epoch !== platformEpoch) return; hyError = error.message; }
-  if (epoch === platformEpoch) renderHuya();
+function refreshHuya(epoch = platformEpoch, forceInventory = false) {
+  if (hyRefreshPending?.epoch === epoch) return forceInventory ? hyRefreshPending.promise.then(() => refreshHuya(epoch, true)) : hyRefreshPending.promise;
+  const pending = { epoch, promise: (async () => {
+    if (!platformRegistry.some(x => x.id === 'huya' && x.available)) { hySnapshot = undefined; return; }
+    try {
+      let data = await api('platforms/huya/status'); if (epoch !== platformEpoch) return;
+      hySnapshot = data; hyError = '';
+      if (data.qr && !hyQRExpires) resumeHuyaQR(data.qr, epoch);
+      const age = Date.now() - Date.parse(data.inventory?.checkedAt || '');
+      if (data.configured && (forceInventory || (location.hash === '#/huya' && (!Number.isFinite(age) || age >= 60000)))) {
+        hyReading = true; renderHuya();
+        data = await api('platforms/huya/probe', {}); if (epoch !== platformEpoch) return;
+        hySnapshot = data;
+      }
+    } catch (error) { if (epoch === platformEpoch) hyError = error.message; }
+    finally { if (epoch === platformEpoch) { hyReading = false; renderHuya(); } }
+  })().finally(() => { if (hyRefreshPending === pending) hyRefreshPending = undefined; }) };
+  hyRefreshPending = pending; return pending.promise;
 }
 $('hy-config').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
@@ -46,7 +60,7 @@ $('hy-config').addEventListener('submit', event => {
     hySnapshot = data; hyError = ''; hyFormsReady = false; renderHuya(); renderPlatformCards(); toast('虎牙设置已保存，接收房间已核对');
   });
 });
-for (const [id, operation] of [['hy-probe', 'probe'], ['hy-run', 'run'], ['hy-disconnect', 'disconnect'], ['hy-reconcile', 'reconcile']]) {
+for (const [id, operation] of [['hy-run', 'run'], ['hy-disconnect', 'disconnect'], ['hy-reconcile', 'reconcile']]) {
   $(id).addEventListener('click', () => action($(id), async () => {
     if (operation === 'reconcile' && !$('hy-confirmed').checked) throw new Error('请先在虎牙核对上一笔赠送，再勾选确认');
     const epoch = platformEpoch;
@@ -57,7 +71,7 @@ for (const [id, operation] of [['hy-probe', 'probe'], ['hy-run', 'run'], ['hy-di
     } finally { if (epoch === platformEpoch) { await refreshHuya(epoch); renderPlatformCards(); renderPlatformHistory(); } }
   }));
 }
-$('hy-refresh').addEventListener('click', () => action($('hy-refresh'), async () => { await refreshHuya(); renderPlatformCards(); renderPlatformHistory(); }));
+for (const id of ['hy-probe', 'hy-refresh']) $(id).addEventListener('click', () => action($(id), async () => { await refreshHuya(platformEpoch, true); renderPlatformCards(); renderPlatformHistory(); if (hyError) throw new Error(hyError); }));
 function stopHuyaQR(message = '') {
   clearTimeout(hyQRTimer); hyQRExpires = 0;
   $('hy-qr-image').hidden = true; $('hy-qr-image').removeAttribute('src'); $('hy-qr-panel').hidden = !message;

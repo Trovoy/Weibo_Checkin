@@ -12,6 +12,8 @@ Huya runs natively in the shared Worker with an isolated HUYA / HuyaAccount SQLi
 4. Open tiger food/records, read the backpack, check the displayed recipient, then send all free tiger food.
 5. Verify a successful real delivery before enabling the daily schedule. Fresh installs default to off, with an editable default time of 09:30 UTC+8.
 
+Inventory is a timestamped snapshot. Opening the Huya page refreshes snapshots older than one minute; while the page stays open, normal polling also refreshes stale inventory. The refresh-status button always reads the backpack again without sending gifts. A failed read displays unknown inventory, not zero. The previous task result is shown with its own time; an earlier empty result does not mean newly detected stock is empty. The once-per-day automatic attempt remains unchanged; after an empty scheduled attempt, inspect the new stock and send manually if needed.
+
 Local browser logins do not automatically synchronize to the Worker. QR sign-in requires the BROWSER binding. Temporary sessions/images are encrypted with AES-256-GCM, accessible only after dashboard unlock and cleaned up on completion, cancellation or a three-minute expiry. Reloading the page can resume an active QR session. Saved Cookies use the existing ENCRYPTION_KEY and are not returned to the browser.
 
 If QR sign-in requires a challenge, complete it on the official site or use the Cookie fallback. In a logged-in desktop Huya page, open developer tools → Network, refresh, and copy the Request Cookie header value from a huya.com request, without the Cookie: prefix. Paste it only into your dashboard. Never share Cookies in chat, logs or GitHub. Huya controls expiry; QR capture does not make a Cookie permanent. Reconnect when it expires.
