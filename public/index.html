@@ -50,7 +50,7 @@
       <p class="aside-label">工作空间</p>
       <nav aria-label="功能页面">
         <a href="#/overview"><svg class="icon"><use href="#icon-overview"/></svg>签到概览</a>
-        <div class="nav-group"><button id="nav-weibo" class="nav-toggle" aria-expanded="false" aria-controls="nav-weibo-items"><svg class="icon platform-icon" aria-hidden="true"><use href="#icon-weibo"/></svg><span>微博签到</span><span class="nav-chevron" aria-hidden="true">›</span></button><div id="nav-weibo-items" class="nav-children" hidden><a href="#/topics">超话管理</a><a href="#/account">微博账号</a></div></div>
+        <div class="nav-group"><button id="nav-weibo" class="nav-toggle" aria-expanded="false" aria-controls="nav-weibo-items"><svg class="icon platform-icon" aria-hidden="true"><use href="#icon-weibo"/></svg><span>微博签到</span><span class="nav-chevron" aria-hidden="true">›</span></button><div id="nav-weibo-items" class="nav-children" hidden><a href="#/weibo">签到与状态</a><a href="#/topics">超话管理</a><a href="#/account">微博账号</a></div></div>
         <div class="nav-group"><button id="nav-nodeseek" class="nav-toggle" aria-expanded="false" aria-controls="nav-nodeseek-items"><svg class="icon platform-icon" aria-hidden="true"><use href="#icon-nodeseek"/></svg><span>NodeSeek</span><span class="nav-chevron" aria-hidden="true">›</span></button><div id="nav-nodeseek-items" class="nav-children" hidden><a href="#/nodeseek">签到与记录</a><a href="#/nodeseek-settings">签到设置</a><a href="#/nodeseek-sync">扩展同步</a></div></div>
         <div class="nav-group"><button id="nav-huya" class="nav-toggle" aria-expanded="false" aria-controls="nav-huya-items"><svg class="icon platform-icon" aria-hidden="true"><use href="#icon-huya"/></svg><span>虎牙直播</span><span class="nav-chevron" aria-hidden="true">›</span></button><div id="nav-huya-items" class="nav-children" hidden><a href="#/huya">虎粮与记录</a><a href="#/huya-settings">账号与设置</a></div></div>
         <a href="#/history"><svg class="icon"><use href="#icon-history"/></svg>全部签到记录</a>
@@ -60,7 +60,7 @@
       </div>
     </aside>
     <main>
-      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><div class="header-actions"><a id="platform-home" class="platform-shortcut" href="https://weibo.com" target="_blank" rel="noreferrer"><svg class="icon" aria-hidden="true"><use href="#icon-weibo"/></svg><span>微博官网</span><svg class="icon shortcut-arrow" aria-hidden="true"><use href="#icon-external"/></svg></a><span class="toolbar-divider" aria-hidden="true"></span><div id="appearance-control" class="appearance-control"><button id="appearance" class="utility-icon" aria-label="外观模式" title="外观模式" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg></button><div id="appearance-menu" class="appearance-menu" role="menu" aria-label="外观模式" hidden><p class="appearance-heading" role="presentation">外观模式</p><button type="button" role="menuitemradio" aria-checked="false" data-appearance="light" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-sun"/></svg><span>浅色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="dark" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-moon"/></svg><span>深色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="system" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg><span>跟随系统</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button></div></div></div></header>
+      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><div class="header-actions"><a id="platform-home" class="platform-shortcut" hidden href="https://weibo.com" target="_blank" rel="noreferrer"><svg class="icon" aria-hidden="true"><use href="#icon-weibo"/></svg><span>微博官网</span><svg class="icon shortcut-arrow" aria-hidden="true"><use href="#icon-external"/></svg></a><span class="toolbar-divider" aria-hidden="true" hidden></span><div id="appearance-control" class="appearance-control"><button id="appearance" class="utility-icon" aria-label="外观模式" title="外观模式" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg></button><div id="appearance-menu" class="appearance-menu" role="menu" aria-label="外观模式" hidden><p class="appearance-heading" role="presentation">外观模式</p><button type="button" role="menuitemradio" aria-checked="false" data-appearance="light" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-sun"/></svg><span>浅色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="dark" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-moon"/></svg><span>深色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="system" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg><span>跟随系统</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button></div></div></div></header>
       <section id="unlock" class="unlock card" hidden>
         <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
         <p class="muted">使用你的管理密钥进入个人控制台。</p>
@@ -69,7 +69,6 @@
       </section>
       <div id="dashboard" hidden>
         <section class="intro"><div><h1 id="page-heading" tabindex="-1">签到概览</h1><p class="muted" id="overview-copy">管理账号、超话和每日签到。</p></div><span class="date" id="date"></span></section>
-        <div id="notice" class="notice" hidden></div>
         <div class="page" id="overview" data-page="overview">
         <div class="section-heading"><h2>签到统计</h2><span class="fine" id="platform-count">正在读取</span></div>
         <section id="overview-insights" class="overview-insights" aria-label="签到进度与近期趋势">
@@ -94,8 +93,10 @@
           <div class="insight-footer"><span id="insight-period">最近 7 天 · UTC+8</span><span id="insight-status" role="status">正在读取记录</span><button id="recent-retry" type="button" hidden>重试读取</button></div>
         </section>
         <div id="platform-list" class="platform-grid overview-services" aria-label="已接入的平台"></div>
-        <div class="section-heading"><h2>微博 · 超话签到</h2><a href="#/topics" class="inline-link">管理超话<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"/></svg></a></div>
-        <section class="stats" aria-label="签到概览">
+        </div>
+        <div class="page" id="weibo" data-page="weibo" hidden>
+        <div id="notice" class="notice" hidden></div>
+        <section class="stats" aria-label="微博签到状态">
           <div class="card stat"><span>今日已完成</span><strong><span id="completed-count">0</span><small> / <span id="topic-count">0</span></small></strong><p>已签到 / 已配置超话</p></div>
           <div class="card stat"><span>微博登录状态</span><strong class="status-label" id="login-stat">未连接</strong><p id="last-check">等待首次登录</p></div>
           <div class="card stat"><span>自动签到</span><strong class="status-label" id="schedule-stat">已关闭</strong><p id="wb-next">08:00–12:00 随机 · UTC+8</p></div>

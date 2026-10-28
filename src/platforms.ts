@@ -106,7 +106,7 @@ async function nodeSeek(request: Request, action: string, env: Env) {
 
 // Add a platform by implementing one adapter and registering it here; scheduling stays with its owner.
 export const platforms: PlatformAdapter[] = [
-  { id: 'weibo', name: '微博', description: '超话签到与个人等级', page: 'topics', available: () => true,
+  { id: 'weibo', name: '微博', description: '超话签到与个人等级', page: 'weibo', available: () => true,
     handle: async (request, action, env) => {
       if (!((action === 'status' && request.method === 'GET') || (action === 'run' && request.method === 'POST'))) return json({ error: '不支持的平台操作' }, 404);
       return env.ACCOUNT.get(env.ACCOUNT.idFromName('personal-account')).fetch(new Request('https://account/api/' + action, { method: request.method, headers: { 'Content-Type': 'application/json' }, body: request.method === 'POST' ? '{}' : undefined }));
