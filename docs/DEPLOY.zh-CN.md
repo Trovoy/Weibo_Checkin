@@ -47,8 +47,8 @@ Wrangler 会打开浏览器完成 Cloudflare 授权。确认 `whoami` 显示的�
 | `name` | `weibo-checkin`，Worker 名称。首次部署前确认没有需要保留的同名服务。 |
 | `workers_dev` | `true`，使用 Cloudflare 提供的访问地址。 |
 | `preview_urls` | `false`，不提供版本预览入口。 |
-| `durable_objects` / `migrations` | 存储账号和签到状态，由 Wrangler 创建；保留原配置。 |
-| `triggers.crons` | `0 1 * * *` 只触发微博；`* * * * *` 检查 NodeSeek 与虎牙各自的到期计划。 |
+| `durable_objects` / `migrations` | 存储账号、签到与通知状态，由 Wrangler 创建；保留旧迁移并追加通知 v4。 |
+| `triggers.crons` | `* * * * *` 检查三个平台各自的持久化到期计划。 |
 | `browser` | NodeSeek 使用 Cloudflare Browser Run；需账号可用并遵守其当前配额和计费。 |
 
 无需手工创建数据库、KV、R2 或绑定。无需 GitHub Actions 部署 Token；仓库中的 Actions 只检查代码，不会部署到 Cloudflare。
@@ -66,7 +66,7 @@ node scripts/secrets.mjs --upload
 密钥脚本生成本地 `.dev.vars`，已有文件不会被覆盖，密钥也不会打印到终端。请用文本编辑器打开文件：
 
 - `ADMIN_TOKEN`：面板登录密码，复制等号后面的值解锁控制台。不是微博密码。
-- `ENCRYPTION_KEY`：服务端用来加密微博与虎牙 Cookie 的密钥。不要填到面板登录框。
+- `ENCRYPTION_KEY`：服务端用来加密微博、虎牙 Cookie 与 Telegram 通知凭证的密钥。不要填到面板登录框。
 - `NODESEEK_CREDENTIAL_KEY`：NodeSeek Cookie 加密及随机计划使用的独立密钥。迁移旧实例时先填写旧 `CREDENTIAL_KEY`；新实例由脚本生成。
 
 请把 `.dev.vars` 备份到自己的密码管理器或其他安全位置；不要提交 Git、上传 Issue 或发给别人。`.dev.vars.example` 只有格式示例，其中的文字不能直接用作密钥。
@@ -81,9 +81,9 @@ node scripts/secrets.mjs --upload
 4. 从关注列表选择加入签到，或者按名称搜索添加，点击“保存设置”。读取关注列表不会自动全部加入签到。
 5. 回到“签到概览”，点击“立即签到”，在“签到记录”核对成功或当日已签。签到是真实操作。
 6. 如需每天自动执行，再到“我的超话”开启“每日自动签到”并保存。默认关闭。
-7. 次日 09:00（UTC+8）后核对记录。Cloudflare Cron 在后台运行，不需要一直开着浏览器或电脑；Cron 配置传播和实际触发可能有延迟。
+7. 核对面板显示的下次计划时间，每天在 08:00–12:00（UTC+8）随机选择。Cloudflare Cron 在后台运行，不需要一直开着浏览器或电脑；Cron 配置传播和实际触发可能有延迟。
 
-一次处理一个超话，间隔 10 秒。遇到登录失效、验证、网络异常或未知结果会停止本轮。先解决提示的问题，再手动重试；结果未知的签到请求不会自动反复提交。
+一次处理一个超话，间隔 10 秒。遇到登录失效、验证、网络异常或未知结果会停止本轮。登录检测暂时网络失败会间隔 45–75 分钟重试，登录或验证问题需人工处理；签到 POST 结果不明时暂停当天，核对后手动恢复或等待次日新计划。详见 [调度规则](SCHEDULING.zh-CN.md)。
 
 ## 自定义域名（可选）
 
@@ -144,7 +144,7 @@ npm run deploy
 
 使用自定义域名配置时，最后一步改为 `npm run deploy:local`。先对照新版公开配置，把必要的新字段更新到本地配置；私有域名继续保存在本地文件。若 `git pull` 提示有本地改动，先备份并查看差异，不要直接覆盖。
 
-同名 Worker 的正常更新会保留 Durable Object 数据和已上传的 Secrets。升级时不要删除 Worker、修改绑定身份或重新生成加密密钥。保留已存在的迁移，并按新配置增加 `NodeSeekAccount` 的 `v2`、`HuyaAccount` 的 `v3` 迁移及 `NODESEEK`、`HUYA`、`BROWSER` 绑定和分钟 Cron；不要覆盖自己的域名。更换 Worker / Cloudflare 账号属于迁移，不能假定旧数据会自动跟随。
+同名 Worker 的正常更新会保留 Durable Object 数据和已上传的 Secrets。升级时不要删除 Worker、修改绑定身份或重新生成加密密钥。保留已存在的迁移，并按新配置增加 `NodeSeekAccount` 的 `v2`、`HuyaAccount` 的 `v3`、`NotificationCenter` 的 `v4` 迁移及 `NODESEEK`、`HUYA`、`NOTIFICATIONS`、`BROWSER` 绑定和分钟 Cron；不要覆盖自己的域名。更换 Worker / Cloudflare 账号属于迁移，不能假定旧数据会自动跟随。
 
 需要保留的内容：
 
@@ -154,7 +154,7 @@ npm run deploy
 
 仓库和源码 ZIP 不包含线上数据库、微博 Cookie 或密钥，无法用它们恢复登录。当前不提供凭证导出功能；删除 Worker / Durable Object 或丢失加密密钥后，需要重新登录和配置。
 
-修改 `ADMIN_TOKEN` 会使旧面板会话失效；修改 `ENCRYPTION_KEY` 会使旧凭证无法解密。若确需更换加密密钥，先在面板断开微博与虎牙账号，再更新密钥并重新扫码。
+修改 `ADMIN_TOKEN` 会使旧面板会话失效；修改 `ENCRYPTION_KEY` 会使旧凭证无法解密。若确需更换加密密钥，先在面板断开微博、虎牙账号与 Telegram Bot，再更新密钥并重新扫码。
 
 ## 常见问题
 
@@ -169,7 +169,7 @@ npm run deploy
 | 二维码过期 / 扫码失败 | 刷新二维码后及时确认。若微博要求安全验证，在官方 App 完成；必要时用面板的 Cookie 备用入口。 |
 | 关注读到了，等级没有 | 电脑网页和手机网页登录域不同，按提示补充个人等级扫码，并确认同一账号；接口未提供的等级会显示未知。 |
 | Cookie 又失效 | 登录有效期由微博控制，项目不能保证永不过期；重新扫码或手动更新 Cookie。 |
-| 09:00 没有自动签到 | 核对开关已保存、超话已保存、登录有效、Cron 配置存在。首次配置稍等传播；手动签到过的条目当天会跳过。 |
+| 上午没有自动签到 | 核对开关已保存、超话已保存、登录有效、Cron 配置存在。首次配置稍等传播；手动签到过的条目当天会跳过。 |
 | GitHub Actions 通过但面板没更新 | Actions 只运行检查，仍需在自己的本地执行部署命令。 |
 
 无法解决时，按 [隐私与反馈说明](../SECURITY.zh-CN.md) 提交脱敏信息。

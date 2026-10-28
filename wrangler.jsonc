@@ -8,9 +8,9 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
-  "durable_objects": { "bindings": [{ "name": "ACCOUNT", "class_name": "WeiboAccount" }, { "name": "NODESEEK", "class_name": "NodeSeekAccount" }, { "name": "HUYA", "class_name": "HuyaAccount" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeiboAccount"] }, { "tag": "v2", "new_sqlite_classes": ["NodeSeekAccount"] }, { "tag": "v3", "new_sqlite_classes": ["HuyaAccount"] }],
-  // Cron 使用 UTC：01:00 对应台北 / 上海 09:00。
-  "triggers": { "crons": ["0 1 * * *", "* * * * *"] },
+  "durable_objects": { "bindings": [{ "name": "ACCOUNT", "class_name": "WeiboAccount" }, { "name": "NODESEEK", "class_name": "NodeSeekAccount" }, { "name": "HUYA", "class_name": "HuyaAccount" }, { "name": "NOTIFICATIONS", "class_name": "NotificationCenter" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WeiboAccount"] }, { "tag": "v2", "new_sqlite_classes": ["NodeSeekAccount"] }, { "tag": "v3", "new_sqlite_classes": ["HuyaAccount"] }, { "tag": "v4", "new_sqlite_classes": ["NotificationCenter"] }],
+  // 每分钟唤醒；各平台持久化当天随机计划，成功后跳过。
+  "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": false }
 }

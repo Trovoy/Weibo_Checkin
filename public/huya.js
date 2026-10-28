@@ -14,9 +14,9 @@ function renderHuya() {
   $('hy-count').textContent = hyReading ? '检测中…' : hyError ? '—' : s?.inventory ? `${s.inventory.count} 个` : '—';
   $('hy-checked').textContent = hyError ? '本次检测失败，请重新检测；未将失败结果计为 0' : s?.inventory ? '库存快照 · ' + time(s.inventory.checkedAt) : '点击检测背包读取当前数量';
   $('hy-room-label').textContent = s?.room ? `${s.room.name} · ${s.room.id}` : '未设置';
-  $('hy-schedule-label').textContent = s?.enabled ? `每日 ${s.time} 自动执行 · UTC+8` : '自动赠送未开启';
+  $('hy-schedule-label').textContent = s?.enabled ? s.schedule?.nextAt ? `下次 ${time(s.schedule.nextAt)} · 08:00–12:00 随机首送` : '自动执行已暂停，请核对账号与结果' : '自动赠送未开启';
   const entry = s?.record;
-  $('hy-result').textContent = hyError || (entry ? `上次任务（${time(entry.at)}）：${hyLabels[entry.code]}${entry.code === 'SUCCESS' ? ` ${entry.count} 个免费虎粮` : ''} · ${s.history.find(x => x.at === entry.at)?.message || ''}${replenished ? '。当前已检测到虎粮，可手动赠送。' : ''}` : '尚未执行。请先检测背包并核对接收房间。');
+  $('hy-result').textContent = hyError || (entry ? `上次任务（${time(entry.at)}）：${hyLabels[entry.code]}${entry.code === 'SUCCESS' ? ` ${entry.count} 个免费虎粮` : ''} · ${s.history.find(x => x.at === entry.at)?.message || ''}${replenished ? '。当前已检测到虎粮，可等待补查或手动赠送。' : ''}` : '尚未执行。请先检测背包并核对接收房间。');
   $('hy-review').hidden = !s?.paused;
   syncHuyaControls();
   $('hy-history').replaceChildren(); $('hy-empty').hidden = !!s?.history.length;
@@ -25,7 +25,7 @@ function renderHuya() {
     row.append(node('td', time(entry.at)), node('td', `${entry.room.name} · ${entry.room.id}`), node('td', entry.code === 'SUCCESS' ? `${entry.count} 个` : '—'), result); row.title = entry.message; $('hy-history').append(row);
   }
   $('hy-credential').textContent = s?.configured ? '已保存凭证，留空保留。检测背包可确认当前连接。' : '尚未连接账号';
-  if (s && !hyFormsReady) { $('hy-room').value = s.room?.id || ''; $('hy-time').value = s.time; $('hy-enabled').checked = s.enabled; hyFormsReady = true; }
+  if (s && !hyFormsReady) { $('hy-room').value = s.room?.id || ''; $('hy-enabled').checked = s.enabled; hyFormsReady = true; }
 }
 function syncHuyaControls() {
   const s = hySnapshot, ready = !!s?.configured && !hyError;
@@ -53,7 +53,7 @@ function refreshHuya(epoch = platformEpoch, forceInventory = false) {
 $('hy-config').addEventListener('submit', event => {
   event.preventDefault(); action(event.submitter, async () => {
     const epoch = platformEpoch;
-    const body = { room: $('hy-room').value.trim(), time: $('hy-time').value, enabled: $('hy-enabled').checked };
+    const body = { room: $('hy-room').value.trim(), enabled: $('hy-enabled').checked };
     if ($('hy-cookie').value.trim()) body.cookie = $('hy-cookie').value.trim();
     const data = await api('platforms/huya/config', body); $('hy-cookie').value = '';
     if (epoch !== platformEpoch) return;

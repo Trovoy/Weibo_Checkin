@@ -3,6 +3,7 @@ import { dayKey } from '../account.ts';
 import { open, seal, unbase64 } from '../crypto.ts';
 import { cleanCookie, HuyaClient, resolveRoom, type Room, type Transport, type Inventory } from './client.ts';
 import { startQR, pollQR, closeQR, type QRSession } from './qr.ts';
+import { planFor, claimAttempt, scheduleView, type DailySchedule } from '../schedule.ts';
 interface QRDriver { start: typeof startQR; poll: typeof pollQR; close: typeof closeQR }
 const qrDriver: QRDriver = { start: startQR, poll: pollQR, close: closeQR };
 
@@ -11,6 +12,7 @@ export interface Entry { day: string; at: string; code: Code; count: number; roo
 export interface State {
   credentials?: string; room?: Room; enabled: boolean; time: string; attemptedDay?: string;
   inventory?: Inventory; history: Entry[]; pending?: { count: number; order: string; room: Room; at: string };
+  schedule?: DailySchedule;
 }
 export const messages: Record<Code, string> = { SUCCESS: '免费背包虎粮已全部赠送，回执与库存已核对', EMPTY: '背包未读到可赠送的普通虎粮，本次未赠送，也未确认续期',
   ERROR: '无法读取虎牙背包，请检查 Cookie 或稍后检测', REJECTED: '虎牙拒绝本次背包赠送，没有改用付费方式', REVIEW: '赠送结果未完全确认，已暂停后续赠送，请先到虎牙核对' };
@@ -73,7 +75,8 @@ export class HuyaAccount {
       const data = await open<{ platform: string; cookie: string }>(state.credentials, this.env.ENCRYPTION_KEY);
       if (data.platform !== 'huya') throw new Error('CONFIG'); return new HuyaClient(data.cookie, state.room);
     };
-    const view = () => ({ date: dayKey(), configured: !!state.credentials && !!state.room, enabled: state.enabled, time: state.time,
+    const view = async () => ({ date: dayKey(), configured: !!state.credentials && !!state.room, enabled: state.enabled, time: state.time,
+      schedule: await scheduleView(state.pending ? { ...await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'huya'), paused: true } : state.schedule, this.env.ENCRYPTION_KEY, 'huya', state.history.some(x => x.day === dayKey() && x.code === 'SUCCESS')),
       room: state.room, inventory: state.inventory, paused: !!state.pending,
       history: state.history.map(x => ({ ...x, message: messages[x.code] })), record: state.history.find(x => x.day === dayKey()) || null });
     if (request.method === 'GET' && action === 'qrimage') {
@@ -109,12 +112,12 @@ export class HuyaAccount {
         }
         state.credentials = await seal({ platform: 'huya', cookie: cleanCookie(result.cookie) }, this.env.ENCRYPTION_KEY);
         delete state.inventory; await save(); await this.clearQR();
-        return Response.json({ status: 'connected', ...view() });
+        return Response.json({ status: 'connected', ...await view() });
       } catch { await this.clearQR(); return Response.json({ error: '扫码会话已结束或虎牙要求验证，请重新生成二维码' }, { status: 502 }); }
     }
     if (request.method === 'GET' && action === 'status') {
       const qr = await this.readQR();
-      return Response.json({ ...view(), qr: qr && qr.expiresAt > Date.now() ? { expiresAt: qr.expiresAt, image: '/api/platforms/huya/qrimage' } : undefined });
+      return Response.json({ ...await view(), qr: qr && qr.expiresAt > Date.now() ? { expiresAt: qr.expiresAt, image: '/api/platforms/huya/qrimage' } : undefined });
     }
     if (request.method !== 'POST' || !['config', 'probe', 'run', 'tick', 'disconnect', 'reconcile'].includes(action)) return Response.json({ error: '操作不存在' }, { status: 404 });
     if (action === 'config') {
@@ -130,11 +133,11 @@ export class HuyaAccount {
       if (input.enabled === true && (!state.credentials || !state.room || state.pending)) return Response.json({ error: '请先连接账号、设置房间，并处理待核对结果' }, { status: 409 });
       if (typeof input.enabled === 'boolean') state.enabled = input.enabled;
       if (typeof input.time === 'string') state.time = input.time;
-      await save(); return Response.json(view());
+      await save(); return Response.json(await view());
     }
-    if (action === 'disconnect') { await this.clearQR(); delete state.credentials; delete state.inventory; state.enabled = false; await save(); return Response.json(view()); }
+    if (action === 'disconnect') { await this.clearQR(); delete state.credentials; delete state.inventory; state.enabled = false; await save(); return Response.json(await view()); }
     if (action === 'probe') {
-      try { state.inventory = await (await client()).inventory(); await save(); return Response.json(view()); }
+      try { state.inventory = await (await client()).inventory(); await save(); return Response.json(await view()); }
       catch (error) {
         const code = error instanceof Error && /^(?:WUP rejected:-?\d+|HTTP:\d{3}|RESPONSE|WUP (?:frame|envelope|parameters|missing response|response)|Tars [a-z ]+)$/.test(error.message) ? error.message :
           error instanceof TypeError ? 'READ_TYPE' : error instanceof DOMException ? error.name === 'TimeoutError' ? 'READ_TIMEOUT' : 'READ_CRYPTO' : 'READ_FAILED';
@@ -146,18 +149,26 @@ export class HuyaAccount {
       if (input.confirmed !== true) return Response.json({ error: '请先在虎牙核对背包与礼物收支' }, { status: 400 });
       // Only remove the pause after a successful read and explicit operator reconciliation.
       try { state.inventory = await (await client()).inventory(); } catch { return Response.json({ error: messages.ERROR }, { status: 502 }); }
-      delete state.pending; state.enabled = false; await save(); return Response.json(view());
+      delete state.pending; state.enabled = false; await save(); return Response.json(await view());
     }
     const today = dayKey();
     if (action === 'tick') {
-      const clock = new Date(Date.now() + 8 * 3600000).toISOString().slice(11, 16);
-      if (!state.enabled || !state.room || !state.credentials || state.pending || state.attemptedDay === today || clock < state.time) return Response.json({ ok: true, skipped: true });
-      state.attemptedDay = today; await save();
+      if (!state.enabled || !state.room || !state.credentials || state.pending) return Response.json({ ok: true, skipped: true });
+      // Existing failed/empty daily records seed the retry instead of becoming a permanent daily lock.
+      if (!state.schedule && state.attemptedDay === today) {
+        const last = state.history.find(x => x.day === today);
+        state.schedule = await claimAttempt(await planFor(undefined, this.env.ENCRYPTION_KEY, 'huya'), this.env.ENCRYPTION_KEY, 'huya', last ? Date.parse(last.at) : Date.now());
+        await save();
+      }
+      const plan = await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'huya');
+      if (plan.paused || !plan.nextAt || Date.now() < Date.parse(plan.nextAt)) return Response.json({ ok: true, skipped: true });
     }
     if (state.pending) return Response.json({ error: messages.REVIEW }, { status: 409 });
     // One successful delivery per day, including manual calls. No automatic second order after success.
-    if (state.history.some(x => x.day === today && x.code === 'SUCCESS')) return Response.json({ ...view(), skipped: true });
-    try { await execute(state, await client(true), save, action === 'tick' ? 'cron' : 'manual'); return Response.json(view()); }
+    if (state.history.some(x => x.day === today && x.code === 'SUCCESS')) return Response.json({ ...await view(), skipped: true });
+    state.schedule = await claimAttempt(await planFor(state.schedule, this.env.ENCRYPTION_KEY, 'huya'), this.env.ENCRYPTION_KEY, 'huya');
+    await save();
+    try { await execute(state, await client(true), save, action === 'tick' ? 'cron' : 'manual'); return Response.json(await view()); }
     catch { return Response.json({ error: '请先连接虎牙账号与目标房间；结果不明时请核对记录' }, { status: 409 }); }
   }
 }

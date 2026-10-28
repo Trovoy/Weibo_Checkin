@@ -26,10 +26,10 @@ function renderPlatformCards() {
     let status = '未连接服务', detail = platform.description;
     if (platform.id === 'weibo') {
       const done = state.topics.filter(t => state.completedToday.includes(t.id)).length;
-      status = `${done} / ${state.topics.length} 超话`; detail = `${labels[state.login]} · ${state.enabled ? '每日 09:00 自动签到' : '自动签到已关闭'}`;
+      status = `${done} / ${state.topics.length} 超话`; detail = `${labels[state.login]} · ${state.enabled ? '08:00–12:00 随机首签' : '自动签到已关闭'}`;
     } else if (platform.id === 'nodeseek' && platform.available) {
       status = nsError ? '暂时无法读取' : !nsSnapshot ? '读取中…' : nsSnapshot.record?.ok ? '今日已签到' : nsSnapshot.record ? '今日未完成' : '等待签到';
-      detail = nsError || (nsSnapshot?.record?.ok ? `今日鸡腿 ${nsSnapshot.record.gain ?? '未提供'} · ${nsHealthLabels[nsSnapshot.config.cookieHealth.status] || '待确认'}` : '随机时段签到 · 14:00 检查补签');
+      detail = nsError || (nsSnapshot?.record?.ok ? `今日鸡腿 ${nsSnapshot.record.gain ?? '未提供'} · ${nsHealthLabels[nsSnapshot.config.cookieHealth.status] || '待确认'}` : '上午随机首签 · 未完成随机补查');
     } else if (platform.id === 'huya' && platform.available && typeof hySnapshot !== 'undefined') {
       status = hyError ? '状态待确认' : hySnapshot?.record?.code === 'SUCCESS' ? '今日已赠送' : hySnapshot?.paused ? '已暂停 · 待核对' : hySnapshot?.configured ? '等待赠送' : '未连接账号';
       detail = hyError || (hySnapshot?.room ? `${hySnapshot.room.name} · ${hySnapshot.room.id} · ${hySnapshot.record?.code === 'SUCCESS' ? hySnapshot.record.count + ' 个免费虎粮' : '免费背包虎粮'}` : platform.description);
@@ -83,7 +83,7 @@ function renderNodeSeek() {
   syncPlatformControls();
   if (config) {
     const plan = config.schedule;
-    $('ns-next').textContent = !config.enabled ? '自动签到已关闭。开启并保存后，将按所选时段执行。' : plan.nextAt ? `下次计划 ${time(plan.nextAt)}，每天随机选择执行时间。` : '暂无下次执行时间，请检查服务的调度配置。';
+    $('ns-next').textContent = !config.enabled ? '自动签到已关闭。开启并保存后，将按所选时段执行。' : plan.paused ? '已暂停自动补查，请处理登录、验证或存储问题后手动执行。' : plan.nextAt ? `下次计划 ${time(plan.nextAt)}；临时失败后每 45–75 分钟补查，成功后当天停止。` : '暂无下次执行时间，请检查服务的调度配置。';
     const syncText = config.browserPaired ? config.browserProtocol === 5 ? `浏览器已连接${config.syncedAt ? '，最近同步 ' + time(config.syncedAt) : ''}。Cookie 变化时将自动同步。` : '旧版扩展配对已迁入。请更新扩展并连接新面板，云端已保存的 Cookie 可继续使用。' : '尚未配对；在“扩展同步”页面连接浏览器，也可手动更新 Cookie。';
     $('ns-sync').textContent = syncText; $('ns-pair-copy').textContent = syncText;
     $('ns-pair-state').textContent = config.browserPaired ? config.browserProtocol === 5 ? '已连接' : '需更新扩展' : '尚未配对';

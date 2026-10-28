@@ -11,7 +11,8 @@ const pages = {
   'nodeseek-settings': ['NodeSeek · 签到设置', '设置自动签到、随机时段与领取方式，按需更新凭证。'],
   'nodeseek-sync': ['NodeSeek · 扩展同步', '在本工作台连接浏览器，自动同步 NodeSeek 登录状态。'],
   huya: ['虎牙 · 免费虎粮', '读取背包中的普通虎粮，全部赠送到指定直播间。'],
-  'huya-settings': ['虎牙 · 账号与设置', '连接虎牙账号，设置接收直播间与每日执行时间。'],
+  'huya-settings': ['虎牙 · 账号与设置', '连接虎牙账号，设置接收直播间与上午随机计划。'],
+  notifications: ['通知设置', '每日 13:00 汇报，各平台异常与恢复及时提醒。'],
   history: ['签到记录', '按平台与月份查看签到结果。']
 };
 function enter(target, stagger = 0) {
@@ -37,9 +38,11 @@ function showPage(animate = true) {
   $('platform-home').href = key.startsWith('nodeseek') ? 'https://www.nodeseek.com' : 'https://weibo.com';
   $('platform-home').textContent = key.startsWith('nodeseek') ? '打开 NodeSeek ↗' : '打开微博 ↗';
   if (key.startsWith('huya')) { $('platform-home').href = 'https://www.huya.com'; $('platform-home').textContent = '打开虎牙 ↗'; }
+  $('platform-home').hidden = key === 'notifications';
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .04); $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
   if (animate && state && key === 'huya' && typeof refreshHuya === 'function') refreshHuya().then(() => { renderPlatformCards(); renderPlatformHistory(); }).catch(() => {});
+  if (animate && state && key === 'notifications' && typeof refreshNotifications === 'function') refreshNotifications().catch(e => toast(e.message, true));
 }
 function toggleNav(name, open, animate = true) {
   const button = $('nav-' + name), panel = $('nav-' + name + '-items'), arrow = button.querySelector('.nav-chevron');
@@ -102,6 +105,7 @@ function lock() {
   $('account-avatar').removeAttribute('src'); $('account-name').textContent = ''; $('account-uid').textContent = ''; avatarKey = '';
   $('qr-placeholder').hidden = false;
   if (typeof resetPlatforms === 'function') resetPlatforms();
+  if (typeof resetNotifications === 'function') resetNotifications();
 }
 async function api(path, body) {
   const response = await fetch('/api/' + path, { method: body === undefined ? 'GET' : 'POST',
@@ -160,7 +164,8 @@ function render(settings = false) {
   $('login-stat').textContent = labels[state.login]; $('account-badge').textContent = labels[state.login];
   $('account-badge').className = 'badge ' + ({ valid: 'success', expired: 'warning', blocked: 'warning' }[state.login] || 'neutral');
   $('last-check').textContent = state.lastChecked ? '上次检测 ' + time(state.lastChecked) : '等待首次登录';
-  $('schedule-stat').textContent = state.enabled ? '已开启' : '已关闭';
+  $('schedule-stat').textContent = state.enabled ? state.schedule?.paused ? '已暂停' : '已开启' : '已关闭';
+  $('wb-next').textContent = state.enabled && state.schedule?.nextAt ? '下次 ' + time(state.schedule.nextAt) : state.schedule?.paused ? '结果需核对，或手动停止后待恢复' : '08:00–12:00 随机 · UTC+8';
   $('notice').hidden = !state.message; $('notice').textContent = state.message || '';
   const job = state.job, running = job?.status === 'running';
   $('run-title').textContent = running ? '正在签到' : job?.status === 'done' ? '本轮签到已完成' : job?.status === 'stopped' ? '签到任务已停止' : '准备开始签到';
@@ -193,6 +198,7 @@ async function refresh(settings = false) {
   render(settings);
   if (entering) enter(document.querySelectorAll('[data-page]:not([hidden])'), .04);
   if (typeof refreshPlatforms === 'function') refreshPlatforms().catch(() => {});
+  if (location.hash === '#/notifications' && typeof refreshNotifications === 'function') refreshNotifications().catch(e => toast(e.message, true));
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => refresh().catch(e => { toast(e.message, true); }), state.job?.status === 'running' ? 4000 : 60000);
   if (state.login === 'valid' && !state.profile && state.job?.status !== 'running' && Date.now() - profileAttemptAt > 60000) {

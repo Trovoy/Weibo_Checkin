@@ -40,8 +40,8 @@ Use your fork's URL if applicable. A downloaded ZIP also works: extract it and e
 | `name` | Defaults to `weibo-checkin`. Avoid overwriting an existing service. |
 | `workers_dev` | `true`: enable the Cloudflare-provided hostname. |
 | `preview_urls` | `false`: disable version preview URLs. |
-| `durable_objects`, `migrations` | Wrangler provisions account/state storage. Preserve these bindings and migrations. |
-| `triggers.crons` | `0 1 * * *` triggers Weibo; `* * * * *` checks due NodeSeek and Huya plans. |
+| `durable_objects`, `migrations` | Wrangler provisions account/state storage. Preserve these bindings and migrations, including the `v4` / `NOTIFICATIONS` notification store. |
+| `triggers.crons` | `* * * * *` checks due durable plans for all three platforms. |
 | `browser` | Cloudflare Browser Run binding for NodeSeek execution and Huya QR sign-in. |
 
 No manual database, KV, R2 or GitHub Actions deployment token is needed for a new installation. Repository Actions validate code; they do not deploy your Cloudflare Worker.
@@ -59,7 +59,7 @@ Keep this order: generate local secrets, create the Worker, then upload secrets.
 The generator writes local `.dev.vars`, preserves an existing file and does not print secrets. Open it with a text editor:
 
 - `ADMIN_TOKEN`: dashboard password; paste only the value after `=` into the unlock form.
-- `ENCRYPTION_KEY`: Weibo/Huya Cookie encryption key; never use it as the dashboard password.
+- `ENCRYPTION_KEY`: Weibo/Huya Cookie and Telegram notification encryption key; never use it as the dashboard password.
 - `NODESEEK_CREDENTIAL_KEY`: separate NodeSeek encryption key and stable random-plan seed. When migrating, preserve the old `CREDENTIAL_KEY` instead of generating a replacement.
 
 Back up `.dev.vars` privately, such as in a password manager. It is ignored by Git. Never upload it to an issue or share it. Values in `.dev.vars.example` are placeholders.
@@ -74,9 +74,9 @@ Open the deployed `https://weibo-checkin.<your-subdomain>.workers.dev` and unloc
 4. Select topics from the list or search, then save. Reading follows does not automatically add all of them.
 5. Run a manual check-in and inspect the records for success/already checked in. This makes real account changes.
 6. If desired, enable daily scheduling and save. New instances default to off.
-7. Check after 09:00 UTC+8 the next day. Cron runs without an open browser or computer, but configuration propagation and execution may be delayed.
+7. Check the displayed next attempt, randomly selected within 08:00–12:00 UTC+8 each day. Cron runs without an open browser or computer, but configuration propagation and execution may be delayed.
 
-Weibo handles one topic per alarm, ten seconds apart. Login expiry, challenges, network errors and unknown results stop the run. Resolve the cause before retrying; an ambiguous check-in POST is not repeatedly submitted automatically.
+Weibo handles one topic per alarm, ten seconds apart. Login expiry, challenges, network errors and unknown results stop the run. Temporary validation-read failures retry after 45–75 minutes; authentication/challenge failures need action. An ambiguous check-in POST pauses the current day; inspect before manually resuming, or wait for the next daily plan. See [scheduling rules](SCHEDULING.md).
 
 ## Custom domain (optional)
 
@@ -129,11 +129,11 @@ npm run deploy
 
 For custom-domain installations, use `npm run deploy:local` last. Compare the new public config with your private local copy and incorporate required changes. Back up and inspect local changes if Git refuses a fast-forward update.
 
-Normal updates to the same Worker retain Durable Object data and uploaded secrets. Preserve existing migrations and add the NodeSeek `v2` and Huya `v3` migrations, `NODESEEK` / `HUYA` / `BROWSER` bindings and minute cron when upgrading from an older Weibo-only deployment. Do not delete the Worker, replace binding identities or regenerate encryption keys. A new Worker/account is a migration, not an automatic copy of old data.
+Normal updates to the same Worker retain Durable Object data and uploaded secrets. Preserve existing migrations and add the NodeSeek `v2`, Huya `v3` and NotificationCenter `v4` migrations, `NODESEEK` / `HUYA` / `NOTIFICATIONS` / `BROWSER` bindings and minute cron when upgrading from an older Weibo-only deployment. Do not delete the Worker, replace binding identities or regenerate encryption keys. A new Worker/account is a migration, not an automatic copy of old data.
 
 Back up `.dev.vars`, any `wrangler.local.jsonc`, and an independent list of your configured topics. The last 200 log entries are not a database backup. Git and source ZIPs do not contain hosted cookies, databases or secrets. Credentials cannot currently be exported; deleting data or losing the encryption key requires reconnecting and reconfiguring.
 
-Changing `ADMIN_TOKEN` invalidates dashboard sessions. Before replacing `ENCRYPTION_KEY`, disconnect Weibo and Huya in the dashboard, update the key, then sign in again.
+Changing `ADMIN_TOKEN` invalidates dashboard sessions. Before replacing `ENCRYPTION_KEY`, disconnect Weibo, Huya and the Telegram Bot in the dashboard, update the key, then sign in again.
 
 ## Troubleshooting
 
@@ -148,7 +148,7 @@ Changing `ADMIN_TOKEN` invalidates dashboard sessions. Before replacing `ENCRYPT
 | QR expired / challenge required | Generate a new QR code; complete verification in the official app, or use the Cookie fallback. |
 | Follows work, levels missing | Connect the mobile site using the same account. Levels absent from upstream remain unknown. |
 | Cookie expires again | Upstream controls expiry; reconnect or update the Cookie. |
-| No 09:00 run | Check the saved switch, topic list, login and cron. Completed topics are skipped that day. |
+| No morning run | Check the saved switch, topic list, login and cron. Completed topics are skipped that day. |
 | Actions passed but dashboard unchanged | CI does not deploy. Run the deployment command in your own environment. |
 
 Report only redacted information according to [Privacy and reporting](../SECURITY.md).
