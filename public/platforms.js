@@ -1,12 +1,10 @@
 let platformRegistry = [], nsSnapshot, nsRecords = [], nsError = '', nsHistoryError = '', nsLoadedMonth = '', nsFormsReady = false;
-let platformEpoch = 0, platformPending, nsHistoryPending, progressKey = '';
+let platformEpoch = 0, platformPending, nsHistoryPending;
 const nsAvailable = () => platformRegistry.some(p => p.id === 'nodeseek' && p.available);
 const nsHealthLabels = { valid: '有效', invalid: '已失效', unknown: '待确认', unchecked: '待检测', stale: '需复检', missing: '未配置' };
 function resetPlatforms() {
   platformEpoch++; platformPending = undefined; nsHistoryPending = undefined;
   platformRegistry = []; nsSnapshot = undefined; nsRecords = []; nsError = ''; nsHistoryError = ''; nsLoadedMonth = ''; nsFormsReady = false;
-  progressKey = ''; if (motion) motion.killTweensOf($('progress-ring'));
-  $('progress-ring').setAttribute('stroke-dashoffset', '100');
   if (typeof resetOverview === 'function') resetOverview();
   if (typeof resetHuya === 'function') resetHuya();
   for (const id of ['ns-cookie', 'ns-ua']) $(id).value = '';
@@ -17,7 +15,6 @@ function chosenMonth() {
   $('history-month').value = month; $('ns-history-month').value = month; return month;
 }
 function renderPlatformCards() {
-  renderOverviewProgress();
   if (typeof renderRecentStats === 'function') renderRecentStats();
   $('platform-list').replaceChildren(); $('platform-count').textContent = platformRegistry.length ? `${platformRegistry.filter(p => p.available).length} 个服务已接入` : nsError ? '平台状态待确认' : '正在读取';
   for (const platform of platformRegistry) {
@@ -37,39 +34,6 @@ function renderPlatformCards() {
     card.append(node('p', status, 'platform-status'), node('p', detail, 'fine'));
     const link = node('a', '管理 ' + platform.name, 'inline-link'); link.append(icon('arrow-right')); link.href = '#/' + platform.page; card.append(link); $('platform-list').append(card);
   }
-}
-function renderOverviewProgress() {
-  if (!state) return;
-  let total = state.topics.length, done = state.topics.filter(t => state.completedToday.includes(t.id)).length;
-  let pending = !platformRegistry.length;
-  for (const platform of platformRegistry) {
-    if (!platform.available || platform.id === 'weibo') continue;
-    if (platform.id === 'huya') {
-      if (typeof hySnapshot === 'undefined' || !hySnapshot || hyError || hySnapshot.date !== state.today) { pending = true; continue; }
-      if (hySnapshot.configured || hySnapshot.record) { total++; if (hySnapshot.record?.code === 'SUCCESS') done++; }
-      continue;
-    }
-    if (platform.id !== 'nodeseek' || nsError || !nsSnapshot || nsSnapshot.date !== state.today) { pending = true; continue; }
-    if (nsSnapshot.config.configured || nsSnapshot.record) {
-      total++;
-      if (nsSnapshot.record?.ok && nsSnapshot.record.date === state.today) done++;
-    }
-  }
-  const percent = total ? Math.round(done / total * 100) : 0;
-  const complete = !pending && total > 0 && done === total;
-  $('progress-percent').textContent = pending || !total ? '—' : `${percent}%`;
-  $('progress-badge').textContent = pending ? '待确认' : !total ? '待配置' : complete ? '全部完成' : `还有 ${total - done} 项`;
-  $('progress-badge').className = 'badge' + (complete ? '' : ' neutral');
-  $('progress-count').textContent = pending ? `已确认 ${done} / ${total} 项` : total ? `${done} / ${total} 项已完成` : '添加签到项目后查看进度';
-  $('progress-note').textContent = pending ? '部分平台状态尚未确认，暂不计算总完成率。' : '微博每个超话计 1 项；NodeSeek 签到、虎牙成功赠送各计 1 项。';
-  $('progress-chart').setAttribute('aria-label', pending ? `已确认完成 ${done} 项，部分平台状态待确认` : total ? `今日共 ${total} 项签到，已完成 ${done} 项，完成率 ${percent}%` : '尚未配置签到项目');
-  const key = `${state.today}:${pending}:${done}:${total}`;
-  if (key === progressKey) return;
-  progressKey = key;
-  const offset = pending || !total ? 100 : 100 - done / total * 100;
-  if (motion) motion.killTweensOf($('progress-ring'));
-  if (!motion || reduceMotion.matches || $('overview').hidden || $('stats-today').hidden) $('progress-ring').setAttribute('stroke-dashoffset', String(offset));
-  else motion.to($('progress-ring'), { attr: { 'stroke-dashoffset': offset }, duration: .45, ease: 'power2.out' });
 }
 function renderNodeSeek() {
   const ready = nsAvailable() && !!nsSnapshot && !nsError, config = nsSnapshot?.config, entry = nsSnapshot?.record;
@@ -160,7 +124,7 @@ async function refreshPlatforms(forceHistory = false) {
       if (typeof refreshHuya === 'function') await refreshHuya(epoch);
       if (epoch !== platformEpoch) return;
       renderPlatformCards(); renderNodeSeek(); renderPlatformHistory();
-      if (typeof loadRecentStats === 'function' && !$('stats-recent').hidden) await loadRecentStats(true);
+      if (typeof loadRecentStats === 'function') await loadRecentStats(true);
       if (['#/nodeseek', '#/history'].includes(location.hash)) await loadPlatformHistory(forceHistory);
     } catch (error) { if (epoch === platformEpoch) { nsError = error.message; renderPlatformCards(); renderNodeSeek(); } }
     finally { if (platformPending === pending) platformPending = undefined; }

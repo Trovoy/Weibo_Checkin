@@ -3,67 +3,94 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../public/overview.js', import.meta.url), 'utf8');
-function setup(api) {
-  const elements = new Map();
-  const node = (_tag?, text?, _class?) => ({ textContent: text, hidden:false, style:{}, children:[], attrs:{},
-    append(...nodes) { this.children.push(...nodes); }, replaceChildren() { this.children = []; },
-    setAttribute(key,value) { this.attrs[key] = value; }, getAttribute(key) { return this.attrs[key]; },
-    addEventListener() {}, focus() {} });
-  const $ = id => { if (!elements.has(id)) elements.set(id,node()); return elements.get(id); };
+const source = ['overview-data.js', 'overview.js'].map(file => readFileSync(new URL('../public/' + file, import.meta.url), 'utf8')).join('\n');
+function setup(api = async (_path: string) => ({ records: [] })) {
   const dates = ['2026-12-27','2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02'];
-  const context = vm.createContext({ $, node, api, platformEpoch:1, motion:undefined, enter() {},
-    platformRegistry:[{id:'weibo'},{id:'nodeseek'}], nsAvailable:() => true,
-    state:{today:'2027-01-02',recentCompletions:dates.map(date => ({date,count:1}))} });
-  vm.runInContext(source,context);
-  return { $, context, run: code => vm.runInContext(code,context) };
+  const context = vm.createContext({ api, platformEpoch: 1,
+    platformRegistry: [{id:'weibo',available:true},{id:'nodeseek',available:true}], nsAvailable: () => true,
+    state: { today:'2027-01-02', topics:[{id:'a'},{id:'b'}], completedToday:['a'], recentCompletions:dates.map(date => ({date,count:1})) } });
+  vm.runInContext(source, context);
+  const run = code => vm.runInContext(code, context), plain = code => JSON.parse(JSON.stringify(run(code)));
+  return { context, run, plain };
 }
-test('recent chart counts distinct successful NodeSeek days, including zero reward, and excludes failures and other dates', () => {
-  const { run } = setup(() => {});
-  const result = run(`recentSeries([{date:'2027-01-01',count:2},{date:'2027-01-02',count:0}], [
+test('recent counts deduplicate successful days including zero reward, excluding failures and other dates', () => {
+  const { plain } = setup();
+  assert.deepEqual(plain(`recentSeries([{date:'2027-01-01',count:2},{date:'2027-01-02',count:0}], [
     {date:'2027-01-01',ok:true,gain:0},{date:'2027-01-01',ok:true,gain:0},
-    {date:'2027-01-02',ok:false},{date:'2027-01-03',ok:true}])`);
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), [
+    {date:'2027-01-02',ok:false},{date:'2027-01-03',ok:true}])`), [
     {date:'2027-01-01',weibo:2,nodeseek:1,huya:0},{date:'2027-01-02',weibo:0,nodeseek:0,huya:0}
   ]);
 });
-test('recent chart loads both months independently from history filters, caches reads and refreshes on request', async () => {
-  const calls = [];
-  const { $, run } = setup(async path => { calls.push(path); return { records:[{date:path.endsWith('12') ? '2026-12-29' : '2027-01-01',ok:true}] }; });
+test('recent history reads both months independently, caches reads and refreshes on request', async () => {
+  const calls: string[] = [];
+  const { run, plain } = setup(async path => { calls.push(path); return { records:[{date:path.endsWith('12') ? '2026-12-29' : '2027-01-01',ok:true}] }; });
   await run('loadRecentStats()');
   assert.deepEqual(calls.sort(),['platforms/nodeseek/history?month=2026-12','platforms/nodeseek/history?month=2027-01']);
-  assert.equal($('recent-total').textContent,'9'); assert.equal($('recent-bars').children.length,7);
-  assert.equal($('recent-badge').textContent,'含今天');
+  const history = plain('getOverviewHistory()');
+  assert.equal(history.pending, false); assert.equal(history.partial, false);
+  assert.equal(history.series.reduce((n, d) => n + d.weibo + d.nodeseek, 0), 9);
+  assert.ok(history.series.every(d => d.huya === null));
   await run('loadRecentStats()'); assert.equal(calls.length,2);
   await run('loadRecentStats(true)'); assert.equal(calls.length,4);
 });
-test('recent chart counts confirmed Huya deliveries by day, excluding empty, uncertain and repeated entries', () => {
-  const { run } = setup(() => {});
-  const result = run(`recentSeries([{date:'2027-01-01',count:0},{date:'2027-01-02',count:0}], [], [
+test('Huya counts only confirmed successful delivery days, not empty or uncertain inventory', () => {
+  const { plain } = setup();
+  assert.deepEqual(plain(`recentSeries([{date:'2027-01-01',count:0},{date:'2027-01-02',count:0}], [], [
     {day:'2027-01-01',code:'SUCCESS',count:35},{day:'2027-01-01',code:'SUCCESS',count:35},
-    {day:'2027-01-02',code:'EMPTY'},{day:'2027-01-02',code:'REVIEW'}])`);
-  assert.deepEqual(JSON.parse(JSON.stringify(result)).map(x => x.huya), [1, 0]);
+    {day:'2027-01-02',code:'EMPTY'},{day:'2027-01-02',code:'REVIEW'}])`).map(x => x.huya), [1,0]);
 });
-test('one unavailable month is marked partial rather than zero, and retry recovers the complete count', async () => {
+test('failed month remains unknown instead of a zero dip; retry restores the missing observations', async () => {
   let fail = true;
-  const { $, run } = setup(async path => {
+  const { run, plain } = setup(async path => {
     if (fail && path.endsWith('12')) throw new Error('unavailable');
     return { records:[{date:path.endsWith('12') ? '2026-12-29' : '2027-01-01',ok:true}] };
   });
   await run('loadRecentStats()');
-  assert.equal($('recent-total').textContent,'8'); assert.equal($('recent-badge').textContent,'部分数据');
-  assert.equal($('recent-retry').hidden,false);
-  assert.match($('recent-bars').children[0].getAttribute('aria-label'),/NodeSeek 待确认/);
+  const history = plain('getOverviewHistory()'); assert.equal(history.partial, true);
+  assert.equal(history.series[0].nodeseek, null); assert.equal(history.series[5].nodeseek, 1); assert.equal(history.series[6].nodeseek, 0);
   fail = false; await run('loadRecentStats(true)');
-  assert.equal($('recent-total').textContent,'9'); assert.equal($('recent-retry').hidden,true);
+  assert.equal(run('getOverviewHistory().partial'), false); assert.equal(run('getOverviewHistory().series[0].nodeseek'), 0);
 });
-test('locking the panel discards pending history results and clears chart data', async () => {
-  const resolvers = [];
-  const { $, context, run } = setup(() => new Promise(resolve => resolvers.push(resolve)));
-  const pending = run('loadRecentStats()');
-  context.platformEpoch++; run('resetOverview()');
-  for (const resolve of resolvers) resolve({records:[{date:'2027-01-01',ok:true}]});
-  await pending;
-  assert.equal(run('recentDate'),''); assert.equal($('recent-bars').children.length,0);
-  assert.equal($('recent-total').textContent,'—'); assert.equal($('stats-recent').hidden,true);
+test('lock and date rollover discard in-flight history responses', async () => {
+  for (const change of ['platformEpoch++; resetOverview()', "state.today = '2027-01-03'"]) {
+    const resolvers: ((value: unknown) => void)[] = [];
+    const { run } = setup(() => new Promise(resolve => resolvers.push(resolve)) as any);
+    const pending = run('loadRecentStats()'); run(change);
+    for (const resolve of resolvers) resolve({records:[{date:'2027-01-01',ok:true}]});
+    await pending;
+    assert.equal(run('recentDate'), ''); assert.equal(run('recentRecords.length'), 0);
+  }
+});
+test('today progress filters by platform, excludes removed topics and does not equate zero inventory with gifting', () => {
+  const { plain } = setup();
+  const items = `overviewToday({...state,completedToday:['a','removed']}, [...platformRegistry,{id:'huya',available:true}],
+    {date:state.today,config:{configured:true},record:{date:state.today,ok:true}}, '',
+    {date:state.today,configured:true,inventory:{count:0},record:{day:state.today,code:'EMPTY'}}, '')`;
+  assert.deepEqual(plain(`overviewSummary(${items})`), {
+    items: plain(items), total:4, done:2, unknown:false, percent:50
+  });
+  assert.equal(plain(`overviewSummary(${items}, 'nodeseek')`).percent,100);
+  assert.equal(plain(`overviewSummary(${items}, 'huya')`).percent,0);
+});
+test('unread or stale platform snapshots suppress percentages while preserving confirmed Weibo counts', () => {
+  const { plain } = setup();
+  for (const snapshot of ['undefined', "{date:'2027-01-01',config:{configured:true},record:{date:'2027-01-01',ok:true}}"] ) {
+    const result = plain(`overviewSummary(overviewToday(state,platformRegistry,${snapshot},'',undefined,''))`);
+    assert.equal(result.percent,null); assert.equal(result.unknown,true); assert.equal(result.done,1);
+  }
+});
+test('unconfigured platforms do not invent tasks and zero configured projects never becomes 100 percent', () => {
+  const { plain } = setup();
+  const result = plain(`overviewSummary(overviewToday({...state,topics:[],completedToday:[]},platformRegistry,{date:state.today,config:{configured:false}},'',undefined,''))`);
+  assert.equal(result.total,0); assert.equal(result.done,0); assert.equal(result.percent,null); assert.equal(result.unknown,false);
+});
+test('previous-day successful records never complete today and pending Huya history remains unknown', () => {
+  const { plain, run } = setup();
+  const result = plain(`overviewSummary(overviewToday(state,[...platformRegistry,{id:'huya',available:true}],
+    {date:state.today,config:{configured:true},record:{date:'2027-01-01',ok:true}},'',
+    {date:state.today,configured:true,record:{day:'2027-01-01',code:'SUCCESS'}},''))`);
+  assert.equal(result.done,1);
+  run("platformRegistry.push({id:'huya',available:true}); var hyError='unavailable'; var hySnapshot;");
+  assert.equal(run('getOverviewHistory().partial'),true);
+  assert.ok(plain('getOverviewHistory().series').every(d => d.huya === null));
 });

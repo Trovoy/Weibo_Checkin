@@ -1,0 +1,88 @@
+.overview-insights {
+  --ins-bg: #19191d; --ins-soft: #1e1e23; --ins-ink: #eeedf2; --ins-muted: #aaa9b2;
+  --ins-line: #303036; --ins-track: #34333d; --ins-wb: #a6a7ff; --ins-ns: #a0aec6;
+  --ins-hy: #c5a78c; --ins-main: var(--ins-wb); --ins-select: #303039;
+  color-scheme: dark; container-type: inline-size; color: var(--ins-ink); background: var(--ins-bg);
+  border: 1px solid var(--ins-line); border-radius: 16px; margin-bottom: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+.overview-insights h3, .overview-insights p { margin: 0; }
+.overview-insights .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.overview-insights button { color: var(--ins-ink); background: transparent; border-color: var(--ins-line); }
+.overview-insights button:hover { background: var(--ins-select); }
+.overview-insights :focus-visible { outline-color: var(--ins-wb); }
+.insight-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+.insight-today { min-width: 0; padding: 24px 20px 20px; border-right: 1px solid var(--ins-line); background: var(--ins-soft); border-radius: 16px 0 0 0; }
+.overview-insights .insight-label { color: var(--ins-muted); font-size: 13px; font-weight: 500; }
+.insight-ring-wrap { width: 192px; height: 192px; position: relative; margin: 16px auto; }
+.insight-ring { display: block; width: 100%; height: 100%; }
+.insight-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.insight-number { display: flex; align-items: baseline; justify-content: center; gap: 3px; font-size: 49px; line-height: 1; font-weight: 500; letter-spacing: -1.8px; }
+.insight-percent { font-size: 18px; font-weight: 400; color: var(--ins-muted); letter-spacing: -.5px; }
+.overview-insights .insight-dial-label { color: var(--ins-muted); font-size: 12px; margin-top: 11px; }
+.insight-counter { display: inline-flex; align-items: baseline; font: inherit; line-height: 1em; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.insight-digit { display: block; width: .60em; height: 1em; overflow: hidden; }
+.insight-strip { display: block; }
+.insight-glyph { display: block; height: 1em; line-height: 1em; text-align: center; }
+.insight-summary { text-align: center; display: grid; gap: 5px; margin-bottom: 18px; font-variant-numeric: tabular-nums; }
+#insight-count { font-size: 14px; }
+#insight-remaining { color: var(--ins-muted); font-size: 12px; }
+.insight-platforms { position: relative; display: grid; gap: 5px; padding-top: 12px; border-top: 1px solid var(--ins-line); }
+.insight-selection { position: absolute; inset: 0 auto auto 0; background: var(--ins-select); border-radius: 9px; pointer-events: none; opacity: 0; }
+.overview-insights .insight-platform { position: relative; z-index: 1; display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 6px; padding: 9px; width: 100%; min-height: 66px; text-align: left; border: 0; border-radius: 9px; font-size: 13px; font-weight: 400; }
+.overview-insights .insight-platform:hover { background: transparent; }
+.insight-platform b { font-size: 12px; color: var(--ins-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.insight-platform b strong { color: var(--ins-ink); font-weight: 500; font-size: 14px; }
+.insight-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ins-series); flex-shrink: 0; }
+.insight-platform-status { grid-column: 2/4; color: var(--ins-muted); font-size: 11px; }
+.insight-mini { grid-column: 2/4; height: 3px; display: grid; gap: 3px; }
+.insight-mini em { display: block; height: 100%; overflow: hidden; border-radius: 2px; background: var(--ins-track); }
+.insight-mini i { display: block; height: 100%; width: 100%; border-radius: 2px; background: var(--ins-series); transform-origin: left; }
+.insight-trend { min-width: 0; padding: 24px 26px; }
+.insight-trend-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.insight-week { display: flex; align-items: baseline; gap: 6px; margin: 8px 0; font-size: 38px; font-weight: 500; line-height: 1; letter-spacing: -1px; }
+.insight-week small { color: var(--ins-muted); font-size: 13px; font-weight: 400; letter-spacing: 0; }
+.insight-muted { color: var(--ins-muted); font-size: 12px; }
+#insight-all { min-height: 34px; padding: 6px 11px; border-radius: 18px; font-size: 12px; white-space: nowrap; }
+#insight-all[aria-pressed="true"] { background: var(--ins-ink); color: var(--ins-bg); border-color: var(--ins-ink); }
+.insight-chart { margin-top: 18px; }
+.insight-plot { width: 100%; display: block; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.insight-plot text { font-family: inherit; font-variant-numeric: tabular-nums; }
+.insight-date-range { width: 100%; height: 32px; min-height: 0; appearance: none; -webkit-appearance: none; background: transparent; margin: 0; padding: 0; border: 0; touch-action: pan-y pinch-zoom; }
+.insight-date-range::-webkit-slider-runnable-track { height: 2px; background: var(--ins-line); border-radius: 2px; }
+.insight-date-range::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 11px; height: 11px; margin-top: -4.5px; background: var(--ins-main); border-radius: 50%; }
+.insight-date-range::-moz-range-track { height: 2px; background: var(--ins-line); }
+.insight-date-range::-moz-range-thumb { width: 11px; height: 11px; background: var(--ins-main); border-radius: 50%; border: 0; }
+.insight-day { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; font-size: 13px; }
+.insight-day > strong { font-weight: 500; }
+.insight-day > span { color: var(--ins-muted); }
+.insight-day b { font-size: 19px; font-weight: 500; color: var(--ins-ink); font-variant-numeric: tabular-nums; }
+.insight-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--ins-line); }
+.insight-details label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ins-muted); margin: 0; }
+.insight-details b { display: block; margin-top: 7px; font-weight: 400; font-size: 15px; font-variant-numeric: tabular-nums; }
+.insight-footer { padding: 13px 22px; border-top: 1px solid var(--ins-line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; color: var(--ins-muted); font-size: 12px; }
+.insight-footer #recent-retry { margin: 0; min-height: 32px; font-size: 12px; }
+.overview-services { margin-bottom: 26px; }
+@container (max-width: 640px) {
+  .insight-layout { grid-template-columns: minmax(0, 1fr); }
+  .insight-today { border-right: 0; border-bottom: 1px solid var(--ins-line); border-radius: 16px 16px 0 0; padding: 20px; }
+  .insight-today-body { display: grid; grid-template-columns: 192px minmax(0, 1fr); align-items: center; column-gap: 20px; }
+  .insight-ring-wrap { margin: 12px auto 0; }
+  .insight-summary { grid-column: 1; margin: 6px 0 0; }
+  .insight-platforms { grid-column: 2; grid-row: 1/3; border: 0; padding: 0; }
+  .insight-trend { padding: 22px 20px; }
+}
+@container (max-width: 390px) {
+  .insight-today-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .insight-summary { margin: 8px 0 18px; }
+  .insight-platforms { grid-column: 1; grid-row: auto; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-top: 1px solid var(--ins-line); padding-top: 10px; }
+  .overview-insights .insight-platform { grid-template-columns: 6px minmax(0, 1fr); gap: 7px 5px; padding: 9px 4px; min-height: 70px; font-size: 12px; }
+  .insight-platform b { grid-column: 2; }
+  .insight-platform-status { display: none; }
+  .insight-mini { grid-column: 1/3; }
+  .insight-footer { padding: 13px 18px; }
+}
+@media (pointer: coarse) {
+  .overview-insights button, .insight-footer #recent-retry { min-height: 44px; }
+  .insight-date-range { height: 44px; }
+}

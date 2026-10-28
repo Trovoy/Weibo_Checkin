@@ -81,6 +81,7 @@ function enter(target, stagger = 0) {
   enteringElements = elements.flatMap(element => element.classList.contains('page') ? [...element.querySelectorAll('.card')].filter(card => {
     const rect = card.getBoundingClientRect(); return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
   }).slice(0, 4) : [element]);
+  if (!enteringElements.length) return;
   motion.fromTo(enteringElements, { opacity: 0, y: 4, willChange: 'transform,opacity' }, { opacity: 1, y: 0, force3D: true, duration: .18, stagger: Math.min(stagger, .025), ease: 'power2.out', clearProps: 'opacity,transform,willChange', overwrite: true });
 }
 function showPage(animate = true) {
@@ -424,4 +425,7 @@ for (const link of document.querySelectorAll('a[href^="#/"]')) link.addEventList
 });
 window.addEventListener('hashchange', () => showPage());
 showPage(false);
-refresh(true).catch(error => { if (error.message !== '请使用管理密钥解锁控制台') toast(error.message, true); });
+// All deferred platform/chart scripts must exist before the first status response.
+document.addEventListener('DOMContentLoaded', () => {
+  refresh(true).catch(error => { if (error.message !== '请使用管理密钥解锁控制台') toast(error.message, true); });
+}, { once: true });

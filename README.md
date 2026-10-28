@@ -11,7 +11,7 @@ A self-hosted, single-user dashboard for **Weibo Super Topics, NodeSeek and Huya
 - **Weibo:** QR-code sign-in, followed Super Topics and personal levels, topic search, up to 30 configured topics, manual runs and daily scheduling.
 - **Huya:** official-app QR sign-in, encrypted Cookie capture, all available ordinary backpack tiger food sent to one configured room, daily scheduling and verified receipts. See the [Huya guide](docs/HUYA.md).
 - **NodeSeek:** Cookie checks, a random morning schedule with safe retries, reward records and bounded ledger reconciliation.
-- **One dashboard:** grouped platform navigation, an all-platform log, today's completion ring and a seven-day stacked chart. Counts use UTC+8 and count each confirmed daily item once; unknown data stays unknown.
+- **One dashboard:** grouped platform navigation, an all-platform log, a segmented completion ring and a seven-day area curve. Platform filters link both charts; slide across dates to inspect daily totals. GSAP handles data transitions and respects reduced motion. Counts use UTC+8 and count each confirmed daily item once; unknown records remain distinct from zero.
 - **Browser extension:** pair Chrome/Edge with your own dashboard to synchronize NodeSeek cookies. Its token can synchronize credentials only; management still requires a dashboard session.
 - **Protected access:** an admin token, expiring HttpOnly sessions, same-origin write checks and encrypted platform credentials. No account password is collected.
 - **Controlled execution:** serialized operations, daily deduplication, stop/retry controls, explicit failures and optional failure-summary webhooks.

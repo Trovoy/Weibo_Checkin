@@ -4,6 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light"><meta name="description" content="个人多平台签到工作台">
   <title>每日 · 签到工作台</title><link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/overview.css">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/svg+xml" sizes="any" href="/logo.svg">
@@ -13,8 +14,10 @@
   <meta name="theme-color" content="#fafafa">
   <script src="/vendor/gsap.min.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/overview-data.js" defer></script>
   <script src="/platforms.js" defer></script>
   <script src="/overview.js" defer></script>
+  <script src="/overview-charts.js" defer></script>
   <script src="/huya.js" defer></script>
   <script src="/notifications.js" defer></script>
 </head>
@@ -64,27 +67,28 @@
         <div id="notice" class="notice" hidden></div>
         <div class="page" id="overview" data-page="overview">
         <div class="section-heading"><h2>签到统计</h2><span class="fine" id="platform-count">正在读取</span></div>
-        <div class="overview-platforms">
-          <section class="card progress-card" aria-labelledby="progress-heading">
-            <div class="section-heading"><h3 id="progress-heading">签到统计</h3><span id="progress-badge" class="badge neutral">读取中</span><span id="recent-badge" class="badge neutral" hidden>读取中</span></div>
-            <div class="stats-tabs" role="tablist" aria-label="签到统计视图"><button id="stats-today-tab" role="tab" aria-selected="true" aria-controls="stats-today">今日进度</button><button id="stats-recent-tab" role="tab" aria-selected="false" aria-controls="stats-recent" tabindex="-1">近 7 天</button></div>
-            <div id="stats-today" class="stats-panel" role="tabpanel" aria-labelledby="stats-today-tab">
-            <div id="progress-chart" class="progress-chart" role="img" aria-label="正在读取今日签到进度">
-              <svg viewBox="0 0 160 160" aria-hidden="true"><circle class="progress-track" cx="80" cy="80" r="65"/><circle id="progress-ring" class="progress-ring" cx="80" cy="80" r="65" pathLength="100" stroke-dasharray="100 100" stroke-dashoffset="100"/></svg>
-              <div class="progress-center"><strong id="progress-percent">—</strong><span>今日完成率</span></div>
-            </div>
-            <p id="progress-count" class="progress-count">正在读取各平台状态</p>
-            <p id="progress-note" class="fine">微博每个超话计 1 项，NodeSeek 每日计 1 项。</p>
-            </div>
-            <div id="stats-recent" class="stats-panel" role="tabpanel" aria-labelledby="stats-recent-tab" hidden>
-              <p class="recent-total"><strong id="recent-total">—</strong><span>项已确认完成</span></p>
-              <div id="recent-bars" class="recent-bars" role="list" aria-label="近七天每日完成数量"></div>
-              <div class="recent-legend"><span><i class="legend-weibo"></i>微博</span><span><i class="legend-ns"></i>NodeSeek</span><span><i class="legend-hy"></i>虎牙</span></div>
-              <p id="recent-note" class="fine" role="status">选择后读取近 7 天记录。</p><button id="recent-retry" class="text-button" hidden>重试读取</button>
-            </div>
-          </section>
-          <div id="platform-list" class="platform-grid" aria-label="已接入的平台"></div>
-        </div>
+        <section id="overview-insights" class="overview-insights" aria-label="签到进度与近期趋势">
+          <div class="insight-layout">
+            <section class="insight-today" aria-labelledby="insight-today-heading">
+              <h3 id="insight-today-heading" class="insight-label">今日进度</h3>
+              <div class="insight-today-body">
+                <div class="insight-ring-wrap"><svg id="insight-ring" class="insight-ring" viewBox="0 0 220 220" role="img" aria-label="正在读取今日进度"></svg><div class="insight-center"><div class="insight-number"><span id="insight-percent" role="img" aria-label="正在读取"></span><span id="insight-percent-unit" class="insight-percent" aria-hidden="true">%</span></div><p class="insight-dial-label">今日完成率</p></div></div>
+                <div class="insight-summary" role="status"><p id="insight-count">正在读取各平台状态</p><p id="insight-remaining">稍候片刻</p></div>
+                <div id="insight-platforms" class="insight-platforms" aria-label="按平台筛选统计"><div id="insight-selection" class="insight-selection" aria-hidden="true"></div></div>
+              </div>
+            </section>
+            <section class="insight-trend" aria-labelledby="insight-week-heading">
+              <div class="insight-trend-head"><div><h3 id="insight-week-heading" class="insight-label">近 7 天完成</h3><div class="insight-week"><span id="insight-total" role="img" aria-label="正在读取"></span><small>项</small></div><p id="insight-average" class="insight-muted">读取历史记录中</p></div><button id="insight-all" type="button" aria-pressed="true">全部平台</button></div>
+              <div class="insight-chart"><svg id="insight-plot" class="insight-plot" role="img" aria-label="正在读取近七天记录"></svg></div>
+              <label class="sr-only" for="insight-date">选择查看日期</label><input id="insight-date" class="insight-date-range" type="range" min="0" max="6" step="1" value="6" disabled>
+              <div class="insight-day" role="status"><strong id="insight-date-label">今天</strong><span id="insight-day-total">读取中</span></div>
+              <div id="insight-details" class="insight-details"></div>
+              <p id="insight-history-summary" class="sr-only"></p>
+            </section>
+          </div>
+          <div class="insight-footer"><span id="insight-period">最近 7 天 · UTC+8</span><span id="insight-status" role="status">正在读取记录</span><button id="recent-retry" type="button" hidden>重试读取</button></div>
+        </section>
+        <div id="platform-list" class="platform-grid overview-services" aria-label="已接入的平台"></div>
         <div class="section-heading"><h2>微博 · 超话签到</h2><a href="#/topics" class="inline-link">管理超话<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-arrow-right"/></svg></a></div>
         <section class="stats" aria-label="签到概览">
           <div class="card stat"><span>今日已完成</span><strong><span id="completed-count">0</span><small> / <span id="topic-count">0</span></small></strong><p>已签到 / 已配置超话</p></div>
