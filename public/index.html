@@ -29,6 +29,10 @@
     <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 4v6h-6M4 20v-6h6M5.5 7a8 8 0 0 1 13-2L20 10M4 14l1.5 5a8 8 0 0 0 13-2"/></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
     <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20.5 13A8.5 8.5 0 0 1 11 3.5 8.5 8.5 0 1 0 20.5 13Z"/></symbol>
+    <symbol id="icon-monitor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M8 21h8m-4-5v5"/></symbol>
+    <symbol id="icon-tick" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
     <symbol id="icon-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 16v-4m4 4V8m4 8v-6"/></symbol>
     <symbol id="icon-account" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></symbol>
     <symbol id="icon-topics" viewBox="0 0 24 24"><path d="m9 3-2 18M17 3l-2 18M4 9h17M3 15h17"/></symbol>
@@ -52,11 +56,11 @@
         <a href="#/history"><svg class="icon"><use href="#icon-history"/></svg>全部签到记录</a>
         <a href="#/notifications"><svg class="icon" aria-hidden="true"><use href="#icon-account"/></svg>通知设置</a>
       </nav>
-      <div class="aside-foot"><span class="dot"></span> 个人工作台<small>单账号 · 私人空间</small><button id="lock" class="text-button" hidden>锁定控制台<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-lock"/></svg></button></div>
+      <div class="aside-foot"><div class="workspace-identity"><span class="workspace-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-account"/></svg></span><span class="workspace-copy"><strong>个人空间</strong><small>单账号工作台</small></span></div><button id="lock" class="utility-icon workspace-lock" aria-label="锁定控制台" title="锁定控制台" hidden><svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-lock"/></svg></button></div>
       </div>
     </aside>
     <main>
-      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><div class="header-actions"><select id="appearance" aria-label="外观模式"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select><a id="platform-home" href="https://weibo.com" target="_blank" rel="noreferrer">打开微博<svg class="icon action-icon" aria-hidden="true" focusable="false"><use href="#icon-external"/></svg></a></div></header>
+      <header><span><strong>每日签到</strong><span class="header-divider">/</span><span id="page-label">签到概览</span></span><div class="header-actions"><a id="platform-home" class="platform-shortcut" href="https://weibo.com" target="_blank" rel="noreferrer"><svg class="icon" aria-hidden="true"><use href="#icon-weibo"/></svg><span>微博官网</span><svg class="icon shortcut-arrow" aria-hidden="true"><use href="#icon-external"/></svg></a><span class="toolbar-divider" aria-hidden="true"></span><div id="appearance-control" class="appearance-control"><button id="appearance" class="utility-icon" aria-label="外观模式" title="外观模式" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg></button><div id="appearance-menu" class="appearance-menu" role="menu" aria-label="外观模式" hidden><p class="appearance-heading" role="presentation">外观模式</p><button type="button" role="menuitemradio" aria-checked="false" data-appearance="light" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-sun"/></svg><span>浅色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="dark" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-moon"/></svg><span>深色</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button><button type="button" role="menuitemradio" aria-checked="false" data-appearance="system" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-monitor"/></svg><span>跟随系统</span><svg class="icon appearance-check" aria-hidden="true"><use href="#icon-tick"/></svg></button></div></div></div></header>
       <section id="unlock" class="unlock card" hidden>
         <p class="eyebrow">WELCOME BACK</p><h1>把每天的签到，交给每日。</h1>
         <p class="muted">使用你的管理密钥进入个人控制台。</p>

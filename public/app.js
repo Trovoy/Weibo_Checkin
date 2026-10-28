@@ -102,10 +102,15 @@ function showPage(animate = true) {
   $('overview-copy').textContent = pages[key][1]; $('date').hidden = key !== 'overview';
   document.title = pages[key][0] + ' · 每日';
   $('platform-home').href = key.startsWith('nodeseek') ? 'https://www.nodeseek.com' : 'https://weibo.com';
-  const homeLabel = key.startsWith('nodeseek') ? '打开 NodeSeek' : key.startsWith('huya') ? '打开虎牙' : '打开微博';
-  $('platform-home').replaceChildren(document.createTextNode(homeLabel), icon('external'));
+  const platform = key.startsWith('nodeseek') ? 'nodeseek' : key.startsWith('huya') ? 'huya' : 'weibo';
+  const homeLabel = platform === 'nodeseek' ? 'NodeSeek 官网' : platform === 'huya' ? '虎牙官网' : '微博官网';
+  const homeText = document.createElement('span'); homeText.textContent = homeLabel;
+  const homeArrow = icon('external'); homeArrow.classList.add('shortcut-arrow');
+  $('platform-home').replaceChildren(icon(platform), homeText, homeArrow);
+  $('platform-home').setAttribute('aria-label', '在新标签页打开' + homeLabel);
   if (key.startsWith('huya')) $('platform-home').href = 'https://www.huya.com';
   $('platform-home').hidden = key === 'notifications';
+  document.querySelector('.toolbar-divider').hidden = key === 'notifications';
   if (animate && !$('dashboard').hidden) { window.scrollTo(0, 0); enter(document.querySelectorAll('[data-page="' + key + '"]'), .025); if (keyboardNavigation) $('page-heading').focus({ preventScroll: true }); }
   if (animate && state && ['nodeseek', 'history'].includes(key) && typeof loadPlatformHistory === 'function') loadPlatformHistory().catch(() => {});
   if (animate && state && key === 'huya' && typeof refreshHuya === 'function') refreshHuya().then(() => { renderPlatformCards(); renderPlatformHistory(); }).catch(() => {});
