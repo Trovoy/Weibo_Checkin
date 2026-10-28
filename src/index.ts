@@ -64,7 +64,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (!value || !await validSession(value, env.ADMIN_TOKEN)) return json({ error: '请使用管理密钥解锁控制台' }, 401);
   if (url.pathname === '/api/session/logout' && request.method === 'POST') return new Response('{}', { headers: { 'Content-Type': 'application/json',
     'Set-Cookie': `wc_session=; HttpOnly; SameSite=Strict; Path=/api/; Max-Age=0${secureFlag}` } });
-  const notificationAction = /^\/api\/notifications\/(status|config|test|report|disconnect)$/.exec(url.pathname)?.[1];
+  const notificationAction = /^\/api\/notifications\/(status|config|verify|test|report|disconnect)$/.exec(url.pathname)?.[1];
   if (notificationAction) {
     if (!env.NOTIFICATIONS) return json({ error: '请先部署通知存储绑定' }, 503);
     if ((notificationAction === 'status') !== (request.method === 'GET')) return json({ error: '请求方法不正确' }, 405);

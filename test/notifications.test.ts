@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NotificationCenter } from '../src/notifications.ts';
+import { NotificationCenter, formatNotification } from '../src/notifications.ts';
 import worker from '../src/index.ts';
 import { session } from '../src/crypto.ts';
 const secret = btoa('notification-test'.padEnd(32, 'x'));
@@ -18,7 +18,7 @@ function fixture() {
     NODESEEK: binding(path => path === '/config' ? { configured: true, enabled: true } : { record: { ok: true, gain: 6 } }),
     HUYA: binding(() => ({ enabled: true, date: '2026-12-31', history: [{ day: '2026-12-31', code: 'SUCCESS', count: 18 }], paused: false })) };
   const sent: any[] = []; let response = () => Response.json({ ok: true });
-  const make = () => { const center = new NotificationCenter({ storage } as any, env as any); center.transport = async (url, init) => { assert.match(String(url), /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+\/sendMessage$/); sent.push(JSON.parse(String(init?.body))); return response(); }; return center; };
+  const make = () => { const center = new NotificationCenter({ storage } as any, env as any); center.transport = async (url, init) => { assert.match(String(url), /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+\/(sendMessage|getMe|getChat)$/); assert.equal(init?.redirect, 'manual'); sent.push(JSON.parse(String(init?.body))); return response(); }; return center; };
   const call = (center, path, body = {}) => center.fetch(new Request('https://notify/' + path, { method: path === 'status' ? 'GET' : 'POST', headers: { 'Content-Type': 'application/json' }, body: path === 'status' ? undefined : JSON.stringify(body) }));
   const config = (center, extra = {}) => call(center, 'config', { token, chatId, enabled: true, daily: true, alerts: true, time: '13:00', ...extra });
   return { storage, env, make, call, config, sent, fail: () => { bad = true; }, recover: () => { bad = false; }, reads: () => reads, response: fn => { response = fn; } };
@@ -46,10 +46,25 @@ test('13:00 summary, anomaly and recovery are deduplicated across concurrent tic
     clock += 60000; center = f.make(); await Promise.all([f.call(center, 'tick'), f.call(center, 'tick')]);
     assert.equal(f.sent.length, 2); assert.ok(f.sent[1].text.includes('每日汇报'));
     assert.ok(f.sent[1].text.includes('18 个免费虎粮')); assert.equal(f.sent[1].protect_content, true);
-    f.recover(); await f.call(center, 'tick'); assert.equal(f.sent.length, 3); assert.ok(f.sent[2].text.includes('已恢复'));
+    f.recover(); await f.call(center, 'tick'); assert.equal(f.sent.length, 3); assert.ok(f.sent[2].text.includes('任务恢复'));
     await f.call(f.make(), 'tick'); assert.equal(f.sent.length, 3);
     clock += 86400000; await f.call(f.make(), 'tick'); assert.equal(f.sent.length, 4);
   } finally { Date.now = originalNow; }
+});
+
+test('Telegram HTML layouts keep reports compact, escape content, and preserve zero or unknown rewards', () => {
+  const reports = [
+    { id: 'weibo', name: '微博', line: '微博：11/11 个超话 · 已完成', complete: true },
+    { id: 'nodeseek', name: 'NodeSeek', line: 'NodeSeek：已签到 · 鸡腿 0', complete: true },
+    { id: 'huya', name: '虎牙', line: '虎牙：已赠送 18 个免费虎粮', complete: true }
+  ];
+  const text = formatNotification('manual', reports, Date.parse('2026-12-31T13:00:00+08:00'));
+  assert.ok(text.includes('<code>12/31 13:00 · UTC+8</code>'));
+  assert.ok(text.includes('✅ <b>NodeSeek</b> · +0 鸡腿')); assert.ok(text.includes('全部完成</b> · 3/3 平台'));
+  assert.ok(!text.includes(' · 已完成')); assert.ok(text.length < 230);
+  const alert = formatNotification('alert', [{ id: 'test', name: '<b>&', line: 'unknown <script>', complete: false, issue: 'REVIEW' }]);
+  assert.ok(alert.includes('&lt;script&gt;')); assert.ok(!alert.includes('<script>'));
+  reports[1].line = 'NodeSeek：已签到 · 鸡腿 未知'; assert.ok(formatNotification('daily', reports).includes('鸡腿 未知'));
 });
 
 test('Telegram retries confirmed rate-limit rejections with a bound; uncertain delivery is not sent twice', async () => {
@@ -80,4 +95,15 @@ test('Telegram management routes require a session and same-origin JSON; interna
   assert.equal(calls, 0);
   const own = await worker.fetch(new Request('https://panel.invalid/api/notifications/config', { method: 'POST', headers, body: '{}' }), env as any);
   assert.equal(own.status, 200); assert.equal(calls, 1);
+});
+
+test('Telegram connection checks send no messages and all redirects are refused without forwarding credentials', async () => {
+  const f = fixture(), center = f.make(); await f.config(center);
+  assert.equal((await f.call(center, 'verify')).status, 200); assert.equal(f.sent.length, 2);
+  assert.ok(f.sent.every(body => !Object.hasOwn(body, 'text')));
+  f.response(() => new Response(null, { status: 302, headers: { Location: 'https://untrusted.invalid/' } }));
+  assert.equal((await f.call(center, 'verify')).status, 502); assert.equal(f.sent.length, 3);
+  assert.equal((await f.call(center, 'test')).status, 502); assert.equal(f.sent.length, 4);
+  const s = await (await f.call(center, 'status')).json();
+  assert.equal(s.deliveries[0].reason, 'Telegram 重定向已拒绝'); assert.equal(s.deliveries[0].status, 'failed');
 });

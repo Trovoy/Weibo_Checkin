@@ -12,7 +12,7 @@ function renderNotifications(s, settings = false) {
     for (const key of ['enabled', 'daily', 'alerts']) $('tg-' + key).checked = s[key];
     $('tg-time').value = s.time; tgReady = true;
   }
-  for (const id of ['tg-test', 'tg-report', 'tg-disconnect']) $(id).disabled = !s.configured || busy.has(id);
+  for (const id of ['tg-verify', 'tg-test', 'tg-report', 'tg-disconnect']) $(id).disabled = !s.configured || busy.has(id);
   $('tg-history').replaceChildren(); $('tg-empty').hidden = s.deliveries.length > 0;
   const kinds = { test: '连接测试', manual: '当前汇报', daily: '每日汇报', alert: '异常提醒', recovery: '恢复通知' };
   const labels = { sent: '已发送', failed: '发送失败', unknown: '结果待确认', sending: '结果待确认' };
@@ -38,10 +38,12 @@ $('tg-form').addEventListener('submit', event => {
     renderNotifications(s, true); toast('通知设置已加密保存');
   });
 });
-for (const operation of ['test', 'report', 'disconnect']) $('tg-' + operation).addEventListener('click', () => action($('tg-' + operation), async () => {
+for (const operation of ['verify', 'test', 'report', 'disconnect']) $('tg-' + operation).addEventListener('click', () => action($('tg-' + operation), async () => {
   const epoch = tgEpoch;
   try {
     const s = await api('notifications/' + operation, {}); if (epoch !== tgEpoch) return;
-    renderNotifications(s, true); $('tg-feedback').textContent = operation === 'disconnect' ? 'Bot 已断开，自动通知已关闭。' : '已发送，请在 Telegram 查看。';
+    if (operation === 'verify') $('tg-feedback').textContent = s.message;
+    else { renderNotifications(s, true); $('tg-feedback').textContent = operation === 'disconnect' ? 'Bot 已断开，自动通知已关闭。' : '已发送，请在 Telegram 查看。'; }
   } finally { if (epoch === tgEpoch) await refreshNotifications(); }
 }));
+if (state && location.hash === '#/notifications') refreshNotifications().catch(e => toast(e.message, true));

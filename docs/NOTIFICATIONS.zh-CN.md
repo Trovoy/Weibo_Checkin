@@ -16,7 +16,7 @@
 
 ## 发送与隐私
 
-Worker 只调用官方 [`sendMessage` Bot API](https://core.telegram.org/bots/api#sendmessage)，使用纯文本、关闭链接预览、开启内容保护。消息包含平台名称、完成数量、奖励和固定异常类别，不包含上游 Cookie、账号 ID、房间资料或管理密钥，也不复制上游原始报错。这些汇总结果会传给 Telegram 和配置的接收会话；内容保护不代表端到端保密。
+Worker 只调用官方 [`sendMessage` Bot API](https://core.telegram.org/bots/api#sendmessage)，使用经过转义的 HTML 区分加粗标题、平台状态行和完成汇总，关闭链接预览并开启内容保护。消息包含平台名称、完成数量、奖励和固定异常类别，不包含上游 Cookie、账号 ID、房间资料或管理密钥，也不复制上游原始报错。这些汇总结果会传给 Telegram 和配置的接收会话；内容保护不代表端到端保密。
 
 Token 与 Chat ID 使用现有 `ENCRYPTION_KEY` 一起加密，存放在独立 SQLite `NotificationCenter` Durable Object（`NOTIFICATIONS`，迁移 `v4`）。升级时保留旧迁移并追加 v4，备份加密密钥。没有新增公开 Webhook 或入站 Bot 命令端点。不要开启 Telegram 子请求 URL 日志，因为官方 Bot API 将 Token 放在 URL 中。
 

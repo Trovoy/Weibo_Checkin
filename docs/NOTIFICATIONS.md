@@ -16,7 +16,7 @@ Blank credential fields retain saved values. The API returns only a masked Chat 
 
 ## Delivery and privacy
 
-The Worker calls only the official [`sendMessage` Bot API](https://core.telegram.org/bots/api#sendmessage), with plain text, disabled link previews and protected-content mode. Messages contain platform names, completion counts, rewards and fixed error categories. They omit upstream Cookies, account IDs, room details and management secrets; upstream error bodies are never copied into messages. These summary results are shared with Telegram and the configured recipient. Protected-content mode is not an end-to-end confidentiality guarantee.
+The Worker calls only the official [`sendMessage` Bot API](https://core.telegram.org/bots/api#sendmessage), with escaped HTML for a bold heading, compact platform rows and a completion footer, disabled link previews and protected-content mode. Messages contain platform names, completion counts, rewards and fixed error categories. They omit upstream Cookies, account IDs, room details and management secrets; upstream error bodies are never copied into messages. These summary results are shared with Telegram and the configured recipient. Protected-content mode is not an end-to-end confidentiality guarantee.
 
 Bot Token and Chat ID are encrypted together using the existing `ENCRYPTION_KEY` in an independent SQLite `NotificationCenter` Durable Object (`NOTIFICATIONS`, migration `v4`). Back up that key and preserve all prior migrations. No public webhook or inbound Bot command endpoint is created. Do not enable request-URL logging for Telegram subrequests: the Bot API includes its Token in the URL.
 
